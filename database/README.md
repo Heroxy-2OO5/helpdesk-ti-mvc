@@ -15,9 +15,6 @@ historial automático, flujo controlado de estados, índices y vistas de métric
    `ROLLBACK`, por lo que no deja tickets de prueba.
 6. `04_consultas_utiles.sql`: ejemplos parametrizados para el backend Node.js.
 
-La documentación se completa con `diagrama_entidad_relacion.md` y
-`diccionario_de_datos.md`, útiles para la sección de diseño del informe final.
-
 En pgAdmin, abra **Query Tool**, cargue cada archivo y presione **Execute**. No
 ejecute todos los archivos juntos porque el primero crea una base distinta.
 
