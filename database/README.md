@@ -66,15 +66,3 @@ DB_PASSWORD=CAMBIAR_EN_CADA_EQUIPO
 JWT_SECRET=GENERAR_UNA_CLAVE_LARGA_Y_ALEATORIA
 JWT_EXPIRES_IN=2h
 ```
-
-Guarden este ejemplo como `.env.example`. El archivo `.env` real debe permanecer
-en `.gitignore`.
-
-## Subida a GitHub
-
-Coloquen estos archivos dentro de la carpeta `database` del repositorio y hagan
-un commit pequeño, por ejemplo:
-
-```text
-feat: crear esquema inicial de la base de datos
-```
