@@ -1,13 +1,9 @@
 import express from 'express';
 
+import { healthRouter } from './routes/health.routes.js';
+
 export const app = express();
 
 app.disable('x-powered-by');
 app.use(express.json());
-
-app.get('/api/health', (_request, response) => {
-  response.status(200).json({
-    status: 'ok',
-    service: 'helpdesk-ti-backend',
-  });
-});
+app.use('/api/health', healthRouter);
