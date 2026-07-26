@@ -9,3 +9,14 @@ export const pool = new Pool({
     port: parseInt(process.env.DB_PORT || '5432'),
     database: process.env.DB_NAME,
 });
+
+// Escuchar conexión exitosa
+pool.on('connect', () => {
+    console.log('📦 Conexión establecida con PostgreSQL');
+});
+
+// Escuchar errores inesperados
+pool.on('error', (err) => {
+    console.error('❌ Error inesperado en PostgreSQL', err);
+    process.exit(-1);
+});
