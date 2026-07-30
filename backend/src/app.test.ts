@@ -36,19 +36,22 @@ after(
 );
 
 describe('API HelpDesk TI', () => {
-  test('GET /api/health informa que el servicio está disponible', async () => {
-    const response = await fetch(`${baseUrl}/api/health`);
-    const body = (await response.json()) as {
-      status: string;
-      service: string;
-      timestamp: string;
-    };
+  test('GET /api/health informa que la API y PostgreSQL están disponibles', async () => {
+  const response = await fetch(`${baseUrl}/api/health`);
+  const body = (await response.json()) as {
+    api: string;
+    database: string;
+    message: string;
+  };
 
-    assert.equal(response.status, 200);
-    assert.equal(body.status, 'ok');
-    assert.equal(body.service, 'helpdesk-ti-backend');
-    assert.equal(Number.isNaN(Date.parse(body.timestamp)), false);
-  });
+  assert.equal(response.status, 200);
+  assert.equal(body.api, 'ok');
+  assert.equal(body.database, 'ok');
+  assert.equal(
+    body.message,
+    'HelpDesk TI API y PostgreSQL funcionando correctamente',
+  );
+});
 
   test('una ruta inexistente devuelve un error 404 controlado', async () => {
     const response = await fetch(`${baseUrl}/api/no-existe`);
