@@ -8,11 +8,13 @@ import type {
 } from '../types/auth.types.js';
 
 interface AuthenticatedUserRow extends QueryResultRow {
-    contrasena_hash: string;
-    activo: boolean;
+    id: string;
+    nombre_completo: string;
+    correo: string;
+    rol_codigo: Role;
 }
 
-interface UserWithPasswordRow extends QueryResultRow {
+interface UserWithPasswordRow extends AuthenticatedUserRow {
     contrasena_hash: string;
     activo: boolean;
 }
