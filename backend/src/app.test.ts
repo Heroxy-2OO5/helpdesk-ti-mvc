@@ -21,6 +21,10 @@ const REQUESTER_PASSWORD = 'Solicitante123*';
 const INACTIVE_EMAIL =
   'inactivo.pruebas@helpdesk.local';
 
+const CRUD_USER_EMAIL =
+  'crud.usuarios.pruebas@helpdesk.local';
+const CRUD_USER_PASSWORD = 'UsuarioCrud123*';
+
 interface LoginResponseBody {
   token: string;
   expiresIn: string;
@@ -36,6 +40,27 @@ interface ErrorResponseBody {
   error: {
     code: string;
     message: string;
+  };
+}
+
+interface UserResponseBody {
+  message?: string;
+  usuario: {
+    id: string;
+    nombreCompleto: string;
+    correo: string;
+    rol: string;
+    activo: boolean;
+  };
+}
+
+interface UserListResponseBody {
+  usuarios: UserResponseBody['usuario'][];
+  paginacion: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
   };
 }
 
@@ -565,6 +590,308 @@ describe('API HelpDesk TI', () => {
       assert.equal(
         body.message,
         'Permiso de administrador verificado',
+      );
+    },
+  );
+
+  test(
+    'GET /api/users rechaza solicitudes sin token',
+    async () => {
+      const response = await fetch(
+        `${baseUrl}/api/users`,
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 401);
+      assert.equal(
+        body.error.code,
+        'UNAUTHORIZED',
+      );
+    },
+  );
+
+  test(
+    'un solicitante recibe 403 al consultar usuarios',
+    async () => {
+      const loginResult = await requestLogin(
+        REQUESTER_EMAIL,
+        REQUESTER_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/users`,
+        {
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+          },
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 403);
+      assert.equal(body.error.code, 'FORBIDDEN');
+    },
+  );
+
+  test(
+    'POST /api/users valida los datos enviados',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/users`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            nombreCompleto: 'A',
+            correo: 'correo-invalido',
+            contrasena: '123',
+            rol: 'INVALID_ROLE',
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 400);
+      assert.equal(
+        body.error.code,
+        'VALIDATION_ERROR',
+      );
+    },
+  );
+
+  test(
+    'un administrador ejecuta el CRUD completo de usuarios',
+    async () => {
+      await pool.query(
+        'DELETE FROM usuarios WHERE correo = $1',
+        [CRUD_USER_EMAIL],
+      );
+
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+      const headers = {
+        authorization: `Bearer ${loginBody.token}`,
+        'content-type': 'application/json',
+      };
+
+      try {
+        const createResponse = await fetch(
+          `${baseUrl}/api/users`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              nombreCompleto: 'Usuario CRUD de Pruebas',
+              correo: CRUD_USER_EMAIL,
+              contrasena: CRUD_USER_PASSWORD,
+              rol: 'REQUESTER',
+            }),
+          },
+        );
+        const createBody =
+          (await createResponse.json()) as UserResponseBody;
+
+        assert.equal(createResponse.status, 201);
+        assert.equal(createBody.usuario.correo, CRUD_USER_EMAIL);
+        assert.equal(createBody.usuario.rol, 'REQUESTER');
+        assert.equal(createBody.usuario.activo, true);
+        assert.equal(
+          Object.hasOwn(createBody.usuario, 'contrasenaHash'),
+          false,
+        );
+
+        const userId = createBody.usuario.id;
+
+        const listResponse = await fetch(
+          `${baseUrl}/api/users?search=${CRUD_USER_EMAIL}&page=1&limit=10`,
+          { headers },
+        );
+        const listBody =
+          (await listResponse.json()) as UserListResponseBody;
+
+        assert.equal(listResponse.status, 200);
+        assert.equal(listBody.usuarios.length, 1);
+        assert.equal(listBody.usuarios[0]?.id, userId);
+        assert.equal(listBody.paginacion.total, 1);
+
+        const detailResponse = await fetch(
+          `${baseUrl}/api/users/${userId}`,
+          { headers },
+        );
+        const detailBody =
+          (await detailResponse.json()) as UserResponseBody;
+
+        assert.equal(detailResponse.status, 200);
+        assert.equal(detailBody.usuario.id, userId);
+
+        const updateResponse = await fetch(
+          `${baseUrl}/api/users/${userId}`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              nombreCompleto: 'Usuario CRUD Actualizado',
+              rol: 'TECHNICIAN',
+              contrasena: 'UsuarioActualizado123*',
+            }),
+          },
+        );
+        const updateBody =
+          (await updateResponse.json()) as UserResponseBody;
+
+        assert.equal(updateResponse.status, 200);
+        assert.equal(
+          updateBody.usuario.nombreCompleto,
+          'Usuario CRUD Actualizado',
+        );
+        assert.equal(updateBody.usuario.rol, 'TECHNICIAN');
+
+        const updatedLogin = await requestLogin(
+          CRUD_USER_EMAIL,
+          'UsuarioActualizado123*',
+        );
+
+        assert.equal(updatedLogin.response.status, 200);
+
+        const deleteResponse = await fetch(
+          `${baseUrl}/api/users/${userId}`,
+          {
+            method: 'DELETE',
+            headers,
+          },
+        );
+        const deleteBody =
+          (await deleteResponse.json()) as UserResponseBody;
+
+        assert.equal(deleteResponse.status, 200);
+        assert.equal(deleteBody.usuario.activo, false);
+
+        const inactiveLogin = await requestLogin(
+          CRUD_USER_EMAIL,
+          'UsuarioActualizado123*',
+        );
+
+        assert.equal(inactiveLogin.response.status, 401);
+      } finally {
+        await pool.query(
+          'DELETE FROM usuarios WHERE correo = $1',
+          [CRUD_USER_EMAIL],
+        );
+      }
+    },
+  );
+
+  test(
+    'POST /api/users rechaza correos duplicados',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/users`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            nombreCompleto: 'Administrador Duplicado',
+            correo: ADMIN_EMAIL,
+            contrasena: 'Administrador123*',
+            rol: 'ADMINISTRATOR',
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 409);
+      assert.equal(
+        body.error.code,
+        'EMAIL_ALREADY_EXISTS',
+      );
+    },
+  );
+
+  test(
+    'GET /api/users valida el identificador solicitado',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/users/identificador-invalido`,
+        {
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+          },
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 400);
+      assert.equal(
+        body.error.code,
+        'VALIDATION_ERROR',
+      );
+    },
+  );
+
+  test(
+    'un administrador no puede desactivar su propia cuenta',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/users/${loginBody.usuario.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+          },
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 409);
+      assert.equal(
+        body.error.code,
+        'SELF_DEACTIVATION_NOT_ALLOWED',
       );
     },
   );
