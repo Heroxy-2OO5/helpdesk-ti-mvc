@@ -47,3 +47,12 @@ export const logoutController: RequestHandler = (
         message: 'Sesión cerrada correctamente',
     });
 };
+
+export const adminCheckController: RequestHandler = (
+    _request,
+    response,
+) => {
+    response.status(200).json({
+        message: 'Permiso de administrador verificado',
+    });
+};
