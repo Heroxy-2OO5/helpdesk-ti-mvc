@@ -29,3 +29,21 @@ export const loginController: RequestHandler = async (
         next(error);
     }
 };
+
+export const meController: RequestHandler = (
+    request,
+    response,
+) => {
+    response.status(200).json({
+        usuario: request.authUser,
+    });
+};
+
+export const logoutController: RequestHandler = (
+    _request,
+    response,
+) => {
+    response.status(200).json({
+        message: 'Sesión cerrada correctamente',
+    });
+};
