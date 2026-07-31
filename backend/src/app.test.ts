@@ -25,6 +25,11 @@ const CRUD_USER_EMAIL =
   'crud.usuarios.pruebas@helpdesk.local';
 const CRUD_USER_PASSWORD = 'UsuarioCrud123*';
 
+const CRUD_CATEGORY_NAME =
+  'Categoría CRUD de Pruebas';
+const UPDATED_CATEGORY_NAME =
+  'Categoría CRUD Actualizada';
+
 interface LoginResponseBody {
   token: string;
   expiresIn: string;
@@ -56,6 +61,28 @@ interface UserResponseBody {
 
 interface UserListResponseBody {
   usuarios: UserResponseBody['usuario'][];
+  paginacion: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+interface CategoryResponseBody {
+  message?: string;
+  categoria: {
+    id: string;
+    nombre: string;
+    descripcion: string | null;
+    activo: boolean;
+    desactivadoEn: string | null;
+    desactivadoPorId: string | null;
+  };
+}
+
+interface CategoryListResponseBody {
+  categorias: CategoryResponseBody['categoria'][];
   paginacion: {
     page: number;
     limit: number;
@@ -892,6 +919,327 @@ describe('API HelpDesk TI', () => {
       assert.equal(
         body.error.code,
         'SELF_DEACTIVATION_NOT_ALLOWED',
+      );
+    },
+  );
+
+  test(
+    'GET /api/categories rechaza solicitudes sin token',
+    async () => {
+      const response = await fetch(
+        `${baseUrl}/api/categories`,
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 401);
+      assert.equal(body.error.code, 'UNAUTHORIZED');
+    },
+  );
+
+  test(
+    'un solicitante no puede crear categorías',
+    async () => {
+      const loginResult = await requestLogin(
+        REQUESTER_EMAIL,
+        REQUESTER_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/categories`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            nombre: 'Categoría No Permitida',
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 403);
+      assert.equal(body.error.code, 'FORBIDDEN');
+    },
+  );
+
+  test(
+    'POST /api/categories valida los datos enviados',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/categories`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            nombre: 'A',
+            descripcion: 'x'.repeat(301),
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 400);
+      assert.equal(
+        body.error.code,
+        'VALIDATION_ERROR',
+      );
+    },
+  );
+
+  test(
+    'un administrador ejecuta el CRUD y la eliminación lógica de categorías',
+    async () => {
+      await pool.query(
+        `DELETE FROM categorias
+        WHERE nombre = $1 OR nombre = $2`,
+        [CRUD_CATEGORY_NAME, UPDATED_CATEGORY_NAME],
+      );
+
+      const adminLogin = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const adminBody = getLoginBody(adminLogin.body);
+      const adminHeaders = {
+        authorization: `Bearer ${adminBody.token}`,
+        'content-type': 'application/json',
+      };
+
+      const requesterLogin = await requestLogin(
+        REQUESTER_EMAIL,
+        REQUESTER_PASSWORD,
+      );
+      const requesterBody = getLoginBody(requesterLogin.body);
+      const requesterHeaders = {
+        authorization: `Bearer ${requesterBody.token}`,
+      };
+
+      try {
+        const createResponse = await fetch(
+          `${baseUrl}/api/categories`,
+          {
+            method: 'POST',
+            headers: adminHeaders,
+            body: JSON.stringify({
+              nombre: CRUD_CATEGORY_NAME,
+              descripcion: 'Categoría temporal para pruebas',
+            }),
+          },
+        );
+        const createBody =
+          (await createResponse.json()) as CategoryResponseBody;
+
+        assert.equal(createResponse.status, 201);
+        assert.equal(
+          createBody.categoria.nombre,
+          CRUD_CATEGORY_NAME,
+        );
+        assert.equal(createBody.categoria.activo, true);
+
+        const categoryId = createBody.categoria.id;
+        const encodedSearch = encodeURIComponent(
+          CRUD_CATEGORY_NAME,
+        );
+
+        const listResponse = await fetch(
+          `${baseUrl}/api/categories?search=${encodedSearch}&page=1&limit=10`,
+          { headers: adminHeaders },
+        );
+        const listBody =
+          (await listResponse.json()) as CategoryListResponseBody;
+
+        assert.equal(listResponse.status, 200);
+        assert.equal(listBody.categorias.length, 1);
+        assert.equal(listBody.categorias[0]?.id, categoryId);
+
+        const detailResponse = await fetch(
+          `${baseUrl}/api/categories/${categoryId}`,
+          { headers: adminHeaders },
+        );
+        const detailBody =
+          (await detailResponse.json()) as CategoryResponseBody;
+
+        assert.equal(detailResponse.status, 200);
+        assert.equal(detailBody.categoria.id, categoryId);
+
+        const updateResponse = await fetch(
+          `${baseUrl}/api/categories/${categoryId}`,
+          {
+            method: 'PATCH',
+            headers: adminHeaders,
+            body: JSON.stringify({
+              nombre: UPDATED_CATEGORY_NAME,
+              descripcion: 'Descripción actualizada',
+            }),
+          },
+        );
+        const updateBody =
+          (await updateResponse.json()) as CategoryResponseBody;
+
+        assert.equal(updateResponse.status, 200);
+        assert.equal(
+          updateBody.categoria.nombre,
+          UPDATED_CATEGORY_NAME,
+        );
+
+        const deleteResponse = await fetch(
+          `${baseUrl}/api/categories/${categoryId}`,
+          {
+            method: 'DELETE',
+            headers: adminHeaders,
+          },
+        );
+        const deleteBody =
+          (await deleteResponse.json()) as CategoryResponseBody;
+
+        assert.equal(deleteResponse.status, 200);
+        assert.equal(deleteBody.categoria.activo, false);
+        assert.ok(deleteBody.categoria.desactivadoEn);
+        assert.equal(
+          deleteBody.categoria.desactivadoPorId,
+          adminBody.usuario.id,
+        );
+
+        const databaseResult = await pool.query<{
+          activo: boolean;
+          desactivado_en: Date | null;
+          desactivado_por_id: string | null;
+        }>(
+          `SELECT
+              activo,
+              desactivado_en,
+              desactivado_por_id::text
+          FROM categorias
+          WHERE id = $1`,
+          [categoryId],
+        );
+
+        assert.equal(databaseResult.rowCount, 1);
+        assert.equal(databaseResult.rows[0]?.activo, false);
+        assert.ok(databaseResult.rows[0]?.desactivado_en);
+        assert.equal(
+          databaseResult.rows[0]?.desactivado_por_id,
+          adminBody.usuario.id,
+        );
+
+        const hiddenDetailResponse = await fetch(
+          `${baseUrl}/api/categories/${categoryId}`,
+          { headers: requesterHeaders },
+        );
+        const hiddenDetailBody =
+          (await hiddenDetailResponse.json()) as ErrorResponseBody;
+
+        assert.equal(hiddenDetailResponse.status, 404);
+        assert.equal(
+          hiddenDetailBody.error.code,
+          'CATEGORY_NOT_FOUND',
+        );
+
+        const reactivateResponse = await fetch(
+          `${baseUrl}/api/categories/${categoryId}`,
+          {
+            method: 'PATCH',
+            headers: adminHeaders,
+            body: JSON.stringify({ activo: true }),
+          },
+        );
+        const reactivateBody =
+          (await reactivateResponse.json()) as CategoryResponseBody;
+
+        assert.equal(reactivateResponse.status, 200);
+        assert.equal(reactivateBody.categoria.activo, true);
+        assert.equal(
+          reactivateBody.categoria.desactivadoEn,
+          null,
+        );
+      } finally {
+        await pool.query(
+          `DELETE FROM categorias
+          WHERE nombre = $1 OR nombre = $2`,
+          [CRUD_CATEGORY_NAME, UPDATED_CATEGORY_NAME],
+        );
+      }
+    },
+  );
+
+  test(
+    'POST /api/categories rechaza nombres duplicados',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/categories`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            nombre: 'Hardware',
+            descripcion: 'Nombre duplicado para pruebas',
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 409);
+      assert.equal(
+        body.error.code,
+        'CATEGORY_ALREADY_EXISTS',
+      );
+    },
+  );
+
+  test(
+    'GET /api/categories valida el identificador solicitado',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/categories/id-invalido`,
+        {
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+          },
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 400);
+      assert.equal(
+        body.error.code,
+        'VALIDATION_ERROR',
       );
     },
   );
