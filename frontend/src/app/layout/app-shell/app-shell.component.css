@@ -1,0 +1,95 @@
+.topbar {
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 12px clamp(18px, 4vw, 50px);
+    color: #ffffff;
+    background: #0f2f57;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: inherit;
+    font-size: 19px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.logo span {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 10px;
+    background: #2563eb;
+}
+
+nav {
+    display: flex;
+    gap: 8px;
+}
+
+nav a {
+    padding: 9px 12px;
+    border-radius: 8px;
+    color: #dbeafe;
+    text-decoration: none;
+}
+
+nav a:hover,
+nav a.active {
+    color: #ffffff;
+    background: rgb(255 255 255 / 12%);
+}
+
+.user-area {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-left: auto;
+}
+
+.user-area div {
+    display: grid;
+    text-align: right;
+}
+
+.user-area small {
+    color: #bfdbfe;
+}
+
+.logout-button {
+    padding: 9px 13px;
+    border: 1px solid rgb(255 255 255 / 30%);
+    border-radius: 8px;
+    color: #ffffff;
+    background: transparent;
+    cursor: pointer;
+}
+
+.logout-button:hover {
+    background: rgb(255 255 255 / 10%);
+}
+
+.app-content {
+    width: min(1180px, calc(100% - 36px));
+    margin: 0 auto;
+    padding: 34px 0 50px;
+}
+
+@media (max-width: 800px) {
+    .topbar {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .user-area {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .user-area div {
+        text-align: left;
+    }
+}

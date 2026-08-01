@@ -1,0 +1,39 @@
+<main class="login-page">
+    <section class="login-card">
+        <div class="brand">
+            <span class="brand-icon">TI</span>
+
+            <div>
+                <h1>HelpDesk TI</h1>
+                <p>Gestión de soporte técnico</p>
+            </div>
+        </div>
+
+        <div class="login-heading">
+            <h2>Iniciar sesión</h2>
+            <p>Ingresa con tu correo y contraseña.</p>
+        </div>
+
+        @if (errorMessage()) {
+        <div class="alert alert-error" role="alert">
+            {{ errorMessage() }}
+        </div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="submit()">
+            <label for="correo">Correo electrócnico</label>
+
+            <input id="correo" type="email" formControlName="correo" autocomplete="email" placeholder="usuario@helpdesk.local" /> @if (form.controls.correo.touched && form.controls.correo.invalid) {
+            <small class="field-error">Ingresa un correo electrónico válido.</small> }
+
+            <label for="contrsana">Contraseña</label>
+
+            <input id="contrasena" type="password" formControlName="contrasena" autocomplete="current-password" placeholder="Mínimo 8 caracteres"> @if (form.controls.contrasena.touched && form.controls.contrasena.invalid) {
+            <small class="field-error"> La contraseña debe tener entre 8 y 72 caracteres.</small> }
+
+            <button class="button button-primary login-button" type="submit" [disabled]="loading()">
+                {{ loading() ? 'Ingresando...' : 'Iniciar sesión' }}
+            </button>
+        </form>
+    </section>
+</main>
