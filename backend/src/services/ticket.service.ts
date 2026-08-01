@@ -2,20 +2,24 @@ import { HttpError } from '../errors/http-errors.js';
 import { findActivePriorities } from '../models/catalog.model.js';
 import { findCategoryById } from '../models/category.model.js';
 import {
+    deactivateTicketById,
     findTicketById,
     findTicketHistory,
     insertTicket,
     listTickets as listTicketsModel,
+    updateTicketById,
 } from '../models/ticket.model.js';
 import { findUserById } from '../models/user.model.js';
 import type { AuthenticatedUser } from '../types/auth.types.js';
 import type {
     CreateTicketInput,
+    DeleteTicketInput,
     PriorityCode,
     TicketDetail,
     TicketDetailWithoutHistory,
     TicketFilters,
     TicketListResult,
+    UpdateTicketInput,
 } from '../types/ticket.types.js';
 import { hasPostgresCode } from '../utils/postgres-error.js';
 
@@ -213,6 +217,126 @@ export const createTicket = async (
         }
 
         const historial = await findTicketHistory(ticket.id);
+
+        return {
+            ...ticket,
+            historial,
+        };
+    } catch (error) {
+        return throwTicketDatabaseError(error);
+    }
+};
+
+export const updateTicket = async (
+    id: string,
+    input: UpdateTicketInput,
+    user: AuthenticatedUser,
+): Promise<TicketDetail> => {
+    const currentTicket = await getTicket(id, user);
+
+    if (!currentTicket.activo) {
+        throw new HttpError(
+            409,
+            'TICKET_ALREADY_INACTIVE',
+            'No puedes actualizar un ticket eliminado',
+        );
+    }
+
+    if (user.rol === 'TECHNICIAN') {
+        throw new HttpError(
+            403,
+            'FORBIDDEN',
+            'Los técnicos no pueden modificar los datos generales del ticket',
+        );
+    }
+
+    if (
+        user.rol === 'REQUESTER'
+        && currentTicket.estadoCodigo !== 'PENDING'
+    ) {
+        throw new HttpError(
+            409,
+            'TICKET_NOT_EDITABLE',
+            'Solo puedes modificar tickets que estén pendientes',
+        );
+    }
+
+    const validations: Promise<void>[] = [];
+
+    if (input.categoriaId) {
+        validations.push(ensureCategory(input.categoriaId));
+    }
+
+    if (input.prioridadCodigo) {
+        validations.push(ensurePriority(input.prioridadCodigo));
+    }
+
+    await Promise.all(validations);
+
+    try {
+        const ticket = await updateTicketById(id, {
+            ...input,
+            actualizadoPorId: user.id,
+        });
+
+        if (!ticket) {
+            throw new HttpError(
+                404,
+                'TICKET_NOT_FOUND',
+                'El ticket solicitado no existe',
+            );
+        }
+
+        const historial = await findTicketHistory(id);
+
+        return {
+            ...ticket,
+            historial,
+        };
+    } catch (error) {
+        return throwTicketDatabaseError(error);
+    }
+};
+
+export const deactivateTicket = async (
+    id: string,
+    input: DeleteTicketInput,
+    user: AuthenticatedUser,
+): Promise<TicketDetail> => {
+    if (user.rol !== 'ADMINISTRATOR') {
+        throw new HttpError(
+            403,
+            'FORBIDDEN',
+            'Solo un administrador puede eliminar tickets',
+        );
+    }
+
+    const currentTicket = await getTicket(id, user);
+
+    if (!currentTicket.activo) {
+        throw new HttpError(
+            409,
+            'TICKET_ALREADY_INACTIVE',
+            'El ticket ya se encuentra eliminado',
+        );
+    }
+
+    try {
+        const ticket = await deactivateTicketById(
+            id,
+            user.id,
+            input.motivo,
+        );
+
+        if (!ticket) {
+            throw new HttpError(
+                404,
+                'TICKET_NOT_FOUND',
+                'El ticket solicitado no existe',
+            );
+        }
+
+        const historial = await findTicketHistory(id);
 
         return {
             ...ticket,

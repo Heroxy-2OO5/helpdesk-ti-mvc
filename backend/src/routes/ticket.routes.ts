@@ -2,8 +2,10 @@ import { Router } from 'express';
 
 import {
     createTicketController,
+    deactivateTicketController,
     getTicketController,
     listTicketsController,
+    updateTicketController,
 } from '../controllers/ticket.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/role.middleware.js';
@@ -19,4 +21,13 @@ ticketRouter.route('/')
         createTicketController,
     );
 
-ticketRouter.get('/:id', getTicketController);
+ticketRouter.route('/:id')
+    .get(getTicketController)
+    .patch(
+        authorizeRoles('ADMINISTRATOR', 'REQUESTER'),
+        updateTicketController,
+    )
+    .delete(
+        authorizeRoles('ADMINISTRATOR'),
+        deactivateTicketController,
+    );

@@ -3,14 +3,18 @@ import type { Request, RequestHandler } from 'express';
 import { HttpError } from '../errors/http-errors.js';
 import {
     createTicket,
+    deactivateTicket,
     getTicket,
     getTickets,
+    updateTicket,
 } from '../services/ticket.service.js';
 import { validate } from '../utils/validate.js';
 import { idParamsSchema } from '../validators/common.validator.js';
 import {
     createTicketSchema,
+    deleteTicketSchema,
     ticketListQuerySchema,
+    updateTicketSchema,
 } from '../validators/ticket.validator.js';
 
 const getAuthenticatedUser = (request: Request) => {
@@ -84,6 +88,64 @@ export const createTicketController: RequestHandler = async (
 
         response.status(201).json({
             message: 'Ticket creado correctamente',
+            ticket,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateTicketController: RequestHandler = async (
+    request,
+    response,
+    next,
+) => {
+    try {
+        const { id } = validate(
+            idParamsSchema,
+            request.params,
+        );
+        const input = validate(
+            updateTicketSchema,
+            request.body,
+        );
+        const ticket = await updateTicket(
+            id,
+            input,
+            getAuthenticatedUser(request),
+        );
+
+        response.status(200).json({
+            message: 'Ticket actualizado correctamente',
+            ticket,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const deactivateTicketController: RequestHandler = async (
+    request,
+    response,
+    next,
+) => {
+    try {
+        const { id } = validate(
+            idParamsSchema,
+            request.params,
+        );
+        const input = validate(
+            deleteTicketSchema,
+            request.body,
+        );
+        const ticket = await deactivateTicket(
+            id,
+            input,
+            getAuthenticatedUser(request),
+        );
+
+        response.status(200).json({
+            message: 'Ticket eliminado correctamente',
             ticket,
         });
     } catch (error) {

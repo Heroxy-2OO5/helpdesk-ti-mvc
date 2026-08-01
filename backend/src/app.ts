@@ -19,7 +19,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/catalogs', catalogRouter);
-app.use('/api/users', userRouter);
+app.use('/api/tickets', ticketRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);

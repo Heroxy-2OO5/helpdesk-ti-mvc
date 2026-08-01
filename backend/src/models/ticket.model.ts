@@ -9,6 +9,7 @@ import type {
     TicketHistoryItem,
     TicketStatusCode,
     TicketSummary,
+    UpdateTicketData,
 } from '../types/ticket.types.js';
 
 interface TicketSummaryRow extends QueryResultRow {
@@ -311,4 +312,70 @@ export const insertTicket = async (
     const id = result.rows[0]?.id;
 
     return id ? findTicketById(id) : null;
+};
+
+export const updateTicketById = async (
+    id: string,
+    data: UpdateTicketData,
+): Promise<TicketDetailWithoutHistory | null> => {
+    const assignments: string[] = [];
+    const values: unknown[] = [id];
+
+    if (data.titulo !== undefined) {
+        values.push(data.titulo);
+        assignments.push(`titulo = $${values.length}`);
+    }
+
+    if (data.descripcion !== undefined) {
+        values.push(data.descripcion);
+        assignments.push(`descripcion = $${values.length}`);
+    }
+
+    if (data.categoriaId !== undefined) {
+        values.push(data.categoriaId);
+        assignments.push(`categoria_id = $${values.length}`);
+    }
+
+    if (data.prioridadCodigo !== undefined) {
+        values.push(data.prioridadCodigo);
+        assignments.push(`prioridad_codigo = $${values.length}`);
+    }
+
+    values.push(data.actualizadoPorId);
+    assignments.push(`actualizado_por_id = $${values.length}`);
+
+    const result = await pool.query<IdRow>(
+        `UPDATE tickets
+        SET ${assignments.join(', ')}
+        WHERE id = $1
+        RETURNING id::text`,
+        values,
+    );
+
+    const updatedId = result.rows[0]?.id;
+
+    return updatedId ? findTicketById(updatedId) : null;
+};
+
+export const deactivateTicketById = async (
+    id: string,
+    administratorId: string,
+    reason: string,
+): Promise<TicketDetailWithoutHistory | null> => {
+    const result = await pool.query<IdRow>(
+        `UPDATE tickets
+        SET
+            activo = FALSE,
+            actualizado_por_id = $2,
+            eliminado_por_id = $2,
+            motivo_eliminacion = $3
+        WHERE id = $1
+          AND activo = TRUE
+        RETURNING id::text`,
+        [id, administratorId, reason],
+    );
+
+    const deactivatedId = result.rows[0]?.id;
+
+    return deactivatedId ? findTicketById(deactivatedId) : null;
 };

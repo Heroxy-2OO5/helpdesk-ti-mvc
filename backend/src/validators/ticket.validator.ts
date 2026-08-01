@@ -1,20 +1,11 @@
 import { z } from 'zod';
 
-import {
-    PRIORITY_CODES,
-    TICKET_STATUS_CODES,
-} from '../types/ticket.types.js';
-import {
-    idParamsSchema,
-    paginationFields,
-} from './common.validator.js';
+import { PRIORITY_CODES, TICKET_STATUS_CODES, } from '../types/ticket.types.js';
+import { idParamsSchema, paginationFields, } from './common.validator.js';
 
 const idSchema = idParamsSchema.shape.id;
 
-const tituloSchema = z.string()
-    .trim()
-    .min(3, 'El título debe tener al menos 3 caracteres')
-    .max(150, 'El título no puede superar los 150 caracteres');
+const tituloSchema = z.string().trim().min(3, 'El título debe tener al menos 3 caracteres').max(150, 'El título no puede superar los 150 caracteres');
 
 const descripcionSchema = z.string()
     .trim()
@@ -53,4 +44,21 @@ export const ticketListQuerySchema = z.object({
     activo: z.enum(['true', 'false'])
         .transform((value) => value === 'true')
         .optional(),
+}).strict();
+
+export const updateTicketSchema = z.object({
+    titulo: tituloSchema.optional(),
+    descripcion: descripcionSchema.optional(),
+    categoriaId: idSchema.optional(),
+    prioridadCodigo: prioridadSchema.optional(),
+}).strict().refine(
+    (data) => Object.keys(data).length > 0,
+    'Debes enviar al menos un campo para actualizar',
+);
+
+export const deleteTicketSchema = z.object({
+    motivo: z.string()
+        .trim()
+        .min(5, 'El motivo debe tener al menos 5 caracteres')
+        .max(300, 'El motivo no puede superar los 300 caracteres'),
 }).strict();

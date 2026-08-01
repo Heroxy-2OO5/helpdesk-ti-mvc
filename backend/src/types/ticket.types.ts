@@ -85,6 +85,21 @@ export interface CreateTicketData {
     creadoPorId: string;
 }
 
+export interface UpdateTicketInput {
+    titulo?: string;
+    descripcion?: string;
+    categoriaId?: string;
+    prioridadCodigo?: PriorityCode;
+}
+
+export interface UpdateTicketData extends UpdateTicketInput {
+    actualizadoPorId: string;
+}
+
+export interface DeleteTicketInput {
+    motivo: string;
+}
+
 export interface TicketFilters {
     page: number;
     limit: number;
