@@ -8,6 +8,7 @@ import { userRouter } from './routes/user.routes.js';
 import { categoryRouter } from './routes/category.routes.js';
 import { catalogRouter } from './routes/catalog.routes.js';
 import { ticketRouter } from './routes/ticket.routes.js';
+import { metricsRouter } from './routes/metrics.routes.js';
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.use('/api/users', userRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/catalogs', catalogRouter);
 app.use('/api/tickets', ticketRouter);
+app.use('/api/metrics', metricsRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
