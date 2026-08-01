@@ -106,10 +106,7 @@
     <div class="panel-heading">
         <div>
             <h2>Actualizar ticket</h2>
-
-            <p>
-                @if (isAdministrator()) { Como administrador puedes corregir la información general del ticket. } @else { Puedes actualizarlo mientras permanezca pendiente. }
-            </p>
+            <p>Modifica los datos generales permitidos.</p>
         </div>
     </div>
 
@@ -118,10 +115,7 @@
             <div class="field field-wide">
                 <label for="titulo">Título</label>
 
-                <input id="titulo" type="text" formControlName="titulo" maxlength="150" /> @if ( updateForm.controls.titulo.touched && updateForm.controls.titulo.invalid ) {
-                <small class="field-error">
-                El título debe tener entre 3 y 150 caracteres.
-              </small> }
+                <input id="titulo" type="text" formControlName="titulo" maxlength="150" />
             </div>
 
             <div class="field">
@@ -164,11 +158,7 @@
             <div class="field field-wide">
                 <label for="descripcion">Descripción</label>
 
-                <textarea id="descripcion" formControlName="descripcion" rows="7" maxlength="4000"></textarea> @if ( updateForm.controls.descripcion.touched && updateForm.controls.descripcion.invalid ) {
-                <small class="field-error">
-                La descripción debe tener entre 10 y 4000
-                caracteres.
-              </small> }
+                <textarea id="descripcion" formControlName="descripcion" rows="7" maxlength="4000"></textarea>
             </div>
         </div>
 
@@ -183,12 +173,178 @@
         </div>
     </form>
 </section>
-} @else {
-<section class="panel permission-panel">
-    <h2>Actualización no disponible</h2>
+}
 
-    <p>
-        @if (currentUser()?.rol === 'TECHNICIAN') { Los técnicos no pueden modificar los datos generales del ticket. } @else { Los solicitantes solo pueden modificar tickets que permanezcan pendientes. }
-    </p>
+<section class="action-grid">
+    @if (isAdministrator()) {
+    <article class="panel action-panel">
+        <h2>Asignación de técnico</h2>
+
+        @if (canManageAssignment()) {
+        <form [formGroup]="assignmentForm" (ngSubmit)="assignTechnician()">
+            <div class="field">
+                <label for="tecnicoId">
+                Técnico responsable
+              </label>
+
+                <select id="tecnicoId" formControlName="tecnicoId">
+                <option value="">
+                  Selecciona un técnico
+                </option>
+
+                @for (
+                  technician of technicians();
+                  track technician.id
+                ) {
+                  <option [value]="technician.id">
+                    {{ technician.nombreCompleto }}
+                    — {{ technician.correo }}
+                  </option>
+                }
+              </select>
+            </div>
+
+            <div class="action-buttons">
+                <button class="button button-primary" type="submit" [disabled]="processingAction()">
+                {{
+                  currentTicket.tecnicoId
+                    ? 'Reasignar técnico'
+                    : 'Asignar técnico'
+                }}
+              </button> @if (canRemoveAssignment()) {
+                <button class="button button-secondary" type="button" [disabled]="processingAction()" (click)="removeAssignment()">
+                  Retirar asignación
+                </button> }
+            </div>
+        </form>
+        } @else {
+        <p class="action-help">
+            No se puede cambiar la asignación en el estado actual del ticket.
+        </p>
+        }
+    </article>
+    } @if ( currentUser()?.rol === 'ADMINISTRATOR' || currentUser()?.rol === 'TECHNICIAN' ) {
+    <article class="panel action-panel">
+        <h2>Cambiar estado</h2>
+
+        @if (availableStates().length > 0) {
+        <form [formGroup]="statusForm" (ngSubmit)="changeStatus()">
+            <div class="field">
+                <label for="estadoCodigo">
+                Nuevo estado
+              </label>
+
+                <select id="estadoCodigo" formControlName="estadoCodigo">
+                <option value="">
+                  Selecciona el nuevo estado
+                </option>
+
+                @for (
+                  state of availableStates();
+                  track state.codigo
+                ) {
+                  <option [value]="state.codigo">
+                    {{ state.nombre }}
+                  </option>
+                }
+              </select>
+            </div>
+
+            @if ( statusForm.controls.estadoCodigo.value === 'RESOLVED' || statusForm.controls.estadoCodigo.value === 'CLOSED' ) {
+            <div class="field solution-field">
+                <label for="solucion">
+                  Solución aplicada
+                </label>
+
+                <textarea id="solucion" formControlName="solucion" rows="5" maxlength="8000" placeholder="Describe la solución aplicada al problema"></textarea> @if ( statusForm.controls.estadoCodigo.value === 'RESOLVED' ) {
+                <small>
+                    La solución es obligatoria para marcar el
+                    ticket como resuelto.
+                  </small> }
+            </div>
+            }
+
+            <div class="action-buttons">
+                <button class="button button-primary" type="submit" [disabled]="processingAction()">
+                Actualizar estado
+              </button>
+            </div>
+        </form>
+        } @else {
+        <p class="action-help">
+            No existen transiciones disponibles desde el estado {{ currentTicket.estado }}.
+        </p>
+        }
+    </article>
+    }
 </section>
-} }
+
+@if (isAdministrator() && currentTicket.activo) {
+<section class="panel danger-panel">
+    <div>
+        <h2>Eliminación lógica</h2>
+
+        <p>
+            El ticket se ocultará de las consultas normales, pero su información e historial permanecerán almacenados.
+        </p>
+    </div>
+
+    <button class="button danger-button" type="button" [disabled]="processingAction()" (click)="deactivateTicket()">
+        Eliminar ticket
+      </button>
+</section>
+}
+
+<section class="panel history-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Historial del ticket</h2>
+
+            <p>
+                Registro cronológico de las acciones realizadas.
+            </p>
+        </div>
+    </div>
+
+    @if (currentTicket.historial.length === 0) {
+    <div class="empty-history">
+        No existen acciones registradas.
+    </div>
+    } @else {
+    <div class="timeline">
+        @for ( item of currentTicket.historial; track item.id ) {
+        <article class="timeline-item">
+            <div class="timeline-marker"></div>
+
+            <div class="timeline-content">
+                <div class="timeline-heading">
+                    <strong>
+                  {{ eventLabel(item.tipoEventoCodigo) }}
+                </strong>
+
+                    <time>
+                  {{
+                    item.creadoEn
+                      | date: 'dd/MM/yyyy HH:mm'
+                  }}
+                </time>
+                </div>
+
+                @if ( item.estadoAnteriorCodigo || item.estadoNuevoCodigo ) {
+                <p class="state-change">
+                    {{ stateLabel(item.estadoAnteriorCodigo) }} → {{ stateLabel(item.estadoNuevoCodigo) }}
+                </p>
+                }
+
+                <p>{{ item.observacion }}</p>
+
+                <small>
+                Responsable: {{ item.responsable }}
+              </small>
+            </div>
+        </article>
+        }
+    </div>
+    }
+</section>
+}

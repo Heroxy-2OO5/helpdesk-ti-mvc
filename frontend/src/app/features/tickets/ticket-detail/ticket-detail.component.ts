@@ -2,14 +2,25 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal, } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators, } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize, forkJoin, of } from 'rxjs';
 
-import type { Category, PriorityCatalogItem, PriorityCode, TicketDetail, TicketsStatusCode, UpdateTicketInput, } from '../../../core/models/api.models';
+import type { ChangeTicketStatusInput, Category, PriorityCatalogItem, PriorityCode, TicketDetail, TicketStatusCatalogItem, TicketsStatusCode, UpdateTicketInput, User, UserListResponse, } from '../../../core/models/api.models';
 import { AuthService } from '../../../core/services/auth.service';
 import { CatalogsService } from '../../../core/services/catalogs.service';
 import { CategoriesService } from '../../../core/services/categories.service';
 import { TicketsService } from '../../../core/services/tickets.service';
+import { UsersService } from '../../../core/services/users.service';
 import { getApiErrorMessage } from '../../../core/utils/api-error';
+
+const EMPTY_USERS: UserListResponse = {
+  usuarios: [],
+  paginacion: {
+    page: 1,
+    limit: 100,
+    total: 0,
+    totalPages: 0,
+  },
+};
 
 @Component({
   selector: 'app-ticket-detail',
@@ -29,6 +40,7 @@ export class TicketDetailComponent implements OnInit {
   private readonly ticketsService = inject(TicketsService);
   private readonly categoriesService = inject(CategoriesService);
   private readonly catalogsService = inject(CatalogsService);
+  private readonly usersService = inject(UsersService);
 
   private readonly ticketId =
     this.route.snapshot.paramMap.get('id') ?? '';
@@ -37,9 +49,12 @@ export class TicketDetailComponent implements OnInit {
   readonly ticket = signal<TicketDetail | null>(null);
   readonly categories = signal<Category[]>([]);
   readonly priorities = signal<PriorityCatalogItem[]>([]);
+  readonly states = signal<TicketStatusCatalogItem[]>([]);
+  readonly technicians = signal<User[]>([]);
 
   readonly loading = signal(false);
   readonly saving = signal(false);
+  readonly processingAction = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
 
@@ -66,6 +81,67 @@ export class TicketDetailComponent implements OnInit {
     );
   });
 
+  readonly canManageAssignment = computed(() => {
+    const currentTicket = this.ticket();
+
+    return Boolean(
+      this.isAdministrator() &&
+      currentTicket?.activo &&
+      ['PENDING', 'ASSIGNED', 'IN_PROGRESS'].includes(
+        currentTicket.estadoCodigo,
+      ),
+    );
+  });
+
+  readonly canRemoveAssignment = computed(() => {
+    const currentTicket = this.ticket();
+
+    return Boolean(
+      this.isAdministrator() &&
+      currentTicket?.activo &&
+      currentTicket.estadoCodigo === 'ASSIGNED' &&
+      currentTicket.tecnicoId,
+    );
+  });
+
+  readonly availableStates = computed(() => {
+    const currentTicket = this.ticket();
+
+    if (!currentTicket || !currentTicket.activo) {
+      return [];
+    }
+
+    let allowedCodes: TicketsStatusCode[] = [];
+
+    switch (currentTicket.estadoCodigo) {
+      case 'PENDING':
+        allowedCodes = [];
+        break;
+
+      case 'ASSIGNED':
+        allowedCodes = ['IN_PROGRESS'];
+        break;
+
+      case 'IN_PROGRESS':
+        allowedCodes = ['ASSIGNED', 'RESOLVED'];
+        break;
+
+      case 'RESOLVED':
+        allowedCodes = this.isAdministrator()
+          ? ['IN_PROGRESS', 'CLOSED']
+          : ['IN_PROGRESS'];
+        break;
+
+      case 'CLOSED':
+        allowedCodes = [];
+        break;
+    }
+
+    return this.states().filter((state) =>
+      allowedCodes.includes(state.codigo),
+    );
+  });
+
   readonly updateForm = this.formBuilder.nonNullable.group({
     titulo: [
       '',
@@ -83,17 +159,26 @@ export class TicketDetailComponent implements OnInit {
         Validators.maxLength(4000),
       ],
     ],
-    categoriaId: [
-      '',
-      [Validators.required],
-    ],
+    categoriaId: ['', [Validators.required]],
     prioridadCodigo:
       this.formBuilder.nonNullable.control<
         PriorityCode | ''
-      >(
-        '',
-        [Validators.required],
-      ),
+      >('', [Validators.required]),
+  });
+
+  readonly assignmentForm = this.formBuilder.nonNullable.group({
+    tecnicoId: ['', [Validators.required]],
+  });
+
+  readonly statusForm = this.formBuilder.nonNullable.group({
+    estadoCodigo:
+      this.formBuilder.nonNullable.control<
+        TicketsStatusCode | ''
+      >('', [Validators.required]),
+    solucion: [
+      '',
+      [Validators.maxLength(8000)],
+    ],
   });
 
   ngOnInit(): void {
@@ -109,16 +194,25 @@ export class TicketDetailComponent implements OnInit {
     this.loading.set(true);
     this.errorMessage.set('');
 
-    const categoriesRequest = this.categoriesService.list({
-      page: 1,
-      limit: 100,
-      activo: this.isAdministrator() ? undefined : true,
-    });
+    const techniciansRequest = this.isAdministrator()
+      ? this.usersService.list({
+          page: 1,
+          limit: 100,
+          rol: 'TECHNICIAN',
+          activo: true,
+        })
+      : of(EMPTY_USERS);
 
     forkJoin({
       ticket: this.ticketsService.getById(this.ticketId),
-      categories: categoriesRequest,
+      categories: this.categoriesService.list({
+        page: 1,
+        limit: 100,
+        activo: this.isAdministrator() ? undefined : true,
+      }),
       priorities: this.catalogsService.listPriorities(),
+      states: this.catalogsService.listStates(),
+      technicians: techniciansRequest,
     })
       .pipe(
         finalize(() => {
@@ -129,6 +223,8 @@ export class TicketDetailComponent implements OnInit {
         next: (response) => {
           this.categories.set(response.categories.categorias);
           this.priorities.set(response.priorities);
+          this.states.set(response.states);
+          this.technicians.set(response.technicians.usuarios);
           this.setTicket(response.ticket.ticket);
         },
         error: (error: unknown) => {
@@ -143,8 +239,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   updateTicket(): void {
-    this.errorMessage.set('');
-    this.successMessage.set('');
+    this.clearMessages();
 
     if (!this.canEdit()) {
       this.errorMessage.set(
@@ -193,8 +288,235 @@ export class TicketDetailComponent implements OnInit {
       });
   }
 
+  assignTechnician(): void {
+    this.clearMessages();
+
+    if (this.assignmentForm.invalid) {
+      this.assignmentForm.markAllAsTouched();
+      return;
+    }
+
+    const technicianId =
+      this.assignmentForm.controls.tecnicoId.value;
+
+    this.processingAction.set(true);
+
+    this.ticketsService
+      .assign(this.ticketId, {
+        tecnicoId: technicianId,
+      })
+      .pipe(
+        finalize(() => {
+          this.processingAction.set(false);
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.setTicket(response.ticket);
+          this.successMessage.set(response.message);
+        },
+        error: (error: unknown) => {
+          this.errorMessage.set(
+            getApiErrorMessage(
+              error,
+              'No fue posible asignar el técnico',
+            ),
+          );
+        },
+      });
+  }
+
+  removeAssignment(): void {
+    this.clearMessages();
+
+    const confirmed = window.confirm(
+      '¿Deseas retirar al técnico asignado?',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.processingAction.set(true);
+
+    this.ticketsService
+      .assign(this.ticketId, {
+        tecnicoId: null,
+      })
+      .pipe(
+        finalize(() => {
+          this.processingAction.set(false);
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.setTicket(response.ticket);
+          this.successMessage.set(response.message);
+        },
+        error: (error: unknown) => {
+          this.errorMessage.set(
+            getApiErrorMessage(
+              error,
+              'No fue posible retirar la asignación',
+            ),
+          );
+        },
+      });
+  }
+
+  changeStatus(): void {
+    this.clearMessages();
+
+    if (this.statusForm.invalid) {
+      this.statusForm.markAllAsTouched();
+      return;
+    }
+
+    const values = this.statusForm.getRawValue();
+    const status = values.estadoCodigo as TicketsStatusCode;
+    const solution = values.solucion.trim();
+    const currentTicket = this.ticket();
+
+    if (
+      status === 'RESOLVED' &&
+      !solution &&
+      !currentTicket?.solucion
+    ) {
+      this.errorMessage.set(
+        'Debes registrar una solución para resolver el ticket',
+      );
+      return;
+    }
+
+    if (
+      solution &&
+      solution.length < 5
+    ) {
+      this.errorMessage.set(
+        'La solución debe tener al menos 5 caracteres',
+      );
+      return;
+    }
+
+    const input: ChangeTicketStatusInput = {
+      estadoCodigo: status,
+    };
+
+    if (
+      solution &&
+      ['RESOLVED', 'CLOSED'].includes(status)
+    ) {
+      input.solucion = solution;
+    }
+
+    this.processingAction.set(true);
+
+    this.ticketsService
+      .changeStatus(this.ticketId, input)
+      .pipe(
+        finalize(() => {
+          this.processingAction.set(false);
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.setTicket(response.ticket);
+          this.successMessage.set(response.message);
+        },
+        error: (error: unknown) => {
+          this.errorMessage.set(
+            getApiErrorMessage(
+              error,
+              'No fue posible cambiar el estado',
+            ),
+          );
+        },
+      });
+  }
+
+  deactivateTicket(): void {
+    this.clearMessages();
+
+    const reason = window.prompt(
+      'Escribe el motivo de eliminación del ticket:',
+    );
+
+    if (reason === null) {
+      return;
+    }
+
+    const normalizedReason = reason.trim();
+
+    if (normalizedReason.length < 5) {
+      this.errorMessage.set(
+        'El motivo debe tener al menos 5 caracteres',
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'El ticket se ocultará de las consultas normales. ¿Deseas continuar?',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.processingAction.set(true);
+
+    this.ticketsService
+      .deactivate(this.ticketId, {
+        motivo: normalizedReason,
+      })
+      .pipe(
+        finalize(() => {
+          this.processingAction.set(false);
+        }),
+      )
+      .subscribe({
+        next: () => {
+          void this.router.navigateByUrl('/tickets');
+        },
+        error: (error: unknown) => {
+          this.errorMessage.set(
+            getApiErrorMessage(
+              error,
+              'No fue posible eliminar el ticket',
+            ),
+          );
+        },
+      });
+  }
+
   goBack(): void {
     void this.router.navigateByUrl('/tickets');
+  }
+
+  eventLabel(code: string): string {
+    const labels: Record<string, string> = {
+      CREATED: 'Ticket creado',
+      UPDATED: 'Información actualizada',
+      ASSIGNED: 'Técnico asignado',
+      REASSIGNED: 'Técnico reasignado',
+      UNASSIGNED: 'Asignación retirada',
+      STATUS_CHANGED: 'Estado actualizado',
+      SOLUTION_RECORDED: 'Solución registrada',
+      DELETED: 'Ticket eliminado',
+      RESTORED: 'Ticket restaurado',
+    };
+
+    return labels[code] ?? code;
+  }
+
+  stateLabel(code: TicketsStatusCode | null): string {
+    if (!code) {
+      return 'Sin estado';
+    }
+
+    return (
+      this.states().find((state) => state.codigo === code)
+        ?.nombre ?? code
+    );
   }
 
   priorityClass(code: PriorityCode): string {
@@ -241,5 +563,19 @@ export class TicketDetailComponent implements OnInit {
       categoriaId: ticket.categoriaId,
       prioridadCodigo: ticket.prioridadCodigo,
     });
+
+    this.assignmentForm.reset({
+      tecnicoId: ticket.tecnicoId ?? '',
+    });
+
+    this.statusForm.reset({
+      estadoCodigo: '',
+      solucion: '',
+    });
+  }
+
+  private clearMessages(): void {
+    this.errorMessage.set('');
+    this.successMessage.set('');
   }
 }
