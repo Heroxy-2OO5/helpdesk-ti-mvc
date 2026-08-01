@@ -18,6 +18,14 @@ const ADMIN_PASSWORD = 'Admin123*';
 const REQUESTER_EMAIL = 'solicitante@helpdesk.local';
 const REQUESTER_PASSWORD = 'Solicitante123*';
 
+const TECHNICIAN_EMAIL = 'tecnico@helpdesk.local';
+const TECHNICIAN_PASSWORD = 'Tecnico123*';
+
+const OTHER_REQUESTER_EMAIL =
+  'otro.solicitante.pruebas@helpdesk.local';
+const OTHER_REQUESTER_PASSWORD =
+  'OtroSolicitante123*';
+
 const INACTIVE_EMAIL =
   'inactivo.pruebas@helpdesk.local';
 
@@ -29,6 +37,9 @@ const CRUD_CATEGORY_NAME =
   'Categoría CRUD de Pruebas';
 const UPDATED_CATEGORY_NAME =
   'Categoría CRUD Actualizada';
+
+const TICKET_TEST_SEARCH =
+  'flujo automatizado de pruebas';
 
 interface LoginResponseBody {
   token: string;
@@ -83,6 +94,36 @@ interface CategoryResponseBody {
 
 interface CategoryListResponseBody {
   categorias: CategoryResponseBody['categoria'][];
+  paginacion: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+interface TicketResponseBody {
+  message?: string;
+  ticket: {
+    id: string;
+    codigo: string;
+    titulo: string;
+    estadoCodigo: string;
+    prioridadCodigo: string;
+    solicitanteId: string;
+    tecnicoId: string | null;
+    solucion: string | null;
+    activo: boolean;
+    motivoEliminacion: string | null;
+    historial: Array<{
+      tipoEventoCodigo: string;
+      observacion: string;
+    }>;
+  };
+}
+
+interface TicketListResponseBody {
+  tickets: TicketResponseBody['ticket'][];
   paginacion: {
     page: number;
     limit: number;
@@ -1241,6 +1282,534 @@ describe('API HelpDesk TI', () => {
         body.error.code,
         'VALIDATION_ERROR',
       );
+    },
+  );
+
+  test(
+    'GET /api/tickets rechaza solicitudes sin token',
+    async () => {
+      const response = await fetch(
+        `${baseUrl}/api/tickets`,
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 401);
+      assert.equal(body.error.code, 'UNAUTHORIZED');
+    },
+  );
+
+  test(
+    'POST /api/tickets valida los datos enviados',
+    async () => {
+      const loginResult = await requestLogin(
+        REQUESTER_EMAIL,
+        REQUESTER_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/tickets`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            titulo: 'A',
+            descripcion: 'Corta',
+            categoriaId: 'id-invalido',
+            prioridadCodigo: 'URGENT',
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 400);
+      assert.equal(
+        body.error.code,
+        'VALIDATION_ERROR',
+      );
+    },
+  );
+
+  test(
+    'un técnico no puede crear tickets',
+    async () => {
+      const loginResult = await requestLogin(
+        TECHNICIAN_EMAIL,
+        TECHNICIAN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/tickets`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            titulo: 'Ticket no permitido',
+            descripcion: 'Este ticket no debe ser creado por un técnico.',
+            categoriaId: '1',
+            prioridadCodigo: 'LOW',
+          }),
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 403);
+      assert.equal(body.error.code, 'FORBIDDEN');
+    },
+  );
+
+  test(
+    'tickets respetan roles, estados, solución e historial inmutable',
+    async () => {
+      const adminLogin = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const adminBody = getLoginBody(adminLogin.body);
+      const adminHeaders = {
+        authorization: `Bearer ${adminBody.token}`,
+        'content-type': 'application/json',
+      };
+
+      const requesterLogin = await requestLogin(
+        REQUESTER_EMAIL,
+        REQUESTER_PASSWORD,
+      );
+      const requesterBody = getLoginBody(requesterLogin.body);
+      const requesterHeaders = {
+        authorization: `Bearer ${requesterBody.token}`,
+        'content-type': 'application/json',
+      };
+
+      const technicianLogin = await requestLogin(
+        TECHNICIAN_EMAIL,
+        TECHNICIAN_PASSWORD,
+      );
+      const technicianBody = getLoginBody(technicianLogin.body);
+      const technicianHeaders = {
+        authorization: `Bearer ${technicianBody.token}`,
+        'content-type': 'application/json',
+      };
+
+      await pool.query(
+        `UPDATE tickets
+        SET
+          activo = FALSE,
+          actualizado_por_id = $1,
+          eliminado_por_id = $1,
+          motivo_eliminacion = 'Limpieza de una ejecución anterior'
+        WHERE activo = TRUE
+          AND titulo ILIKE '%' || $2 || '%'`,
+        [adminBody.usuario.id, TICKET_TEST_SEARCH],
+      );
+
+      await pool.query(
+        'DELETE FROM usuarios WHERE correo = $1',
+        [OTHER_REQUESTER_EMAIL],
+      );
+
+      const otherRequesterHash = await hashPassword(
+        OTHER_REQUESTER_PASSWORD,
+      );
+
+      await pool.query(
+        `INSERT INTO usuarios (
+          rol_codigo,
+          nombre_completo,
+          correo,
+          contrasena_hash
+        ) VALUES ($1, $2, $3, $4)`,
+        [
+          'REQUESTER',
+          'Otro Solicitante de Pruebas',
+          OTHER_REQUESTER_EMAIL,
+          otherRequesterHash,
+        ],
+      );
+
+      try {
+        const otherRequesterLogin = await requestLogin(
+          OTHER_REQUESTER_EMAIL,
+          OTHER_REQUESTER_PASSWORD,
+        );
+        const otherRequesterBody = getLoginBody(
+          otherRequesterLogin.body,
+        );
+        const otherRequesterHeaders = {
+          authorization: `Bearer ${otherRequesterBody.token}`,
+          'content-type': 'application/json',
+        };
+
+        const categoryResult = await pool.query<{
+          id: string;
+        }>(
+          `SELECT id::text
+          FROM categorias
+          WHERE activo = TRUE
+          ORDER BY id
+          LIMIT 1`,
+        );
+        const categoryId = categoryResult.rows[0]?.id;
+
+        assert.ok(categoryId);
+
+        const createResponse = await fetch(
+          `${baseUrl}/api/tickets`,
+          {
+            method: 'POST',
+            headers: requesterHeaders,
+            body: JSON.stringify({
+              titulo: `Ticket ${TICKET_TEST_SEARCH}`,
+              descripcion:
+                'El equipo de pruebas presenta una falla que requiere atención técnica.',
+              categoriaId: categoryId,
+              prioridadCodigo: 'MEDIUM',
+            }),
+          },
+        );
+        const createBody =
+          (await createResponse.json()) as TicketResponseBody;
+
+        assert.equal(createResponse.status, 201);
+        assert.match(
+          createBody.ticket.codigo,
+          /^HD-[0-9]{4}-[0-9]{6,}$/,
+        );
+        assert.equal(createBody.ticket.estadoCodigo, 'PENDING');
+        assert.equal(
+          createBody.ticket.solicitanteId,
+          requesterBody.usuario.id,
+        );
+        assert.equal(createBody.ticket.tecnicoId, null);
+        assert.deepEqual(
+          createBody.ticket.historial.map(
+            (item) => item.tipoEventoCodigo,
+          ),
+          ['CREATED'],
+        );
+
+        const ticketId = createBody.ticket.id;
+        const ticketCode = createBody.ticket.codigo;
+
+        const updateResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}`,
+          {
+            method: 'PATCH',
+            headers: requesterHeaders,
+            body: JSON.stringify({
+              titulo: `Ticket ${TICKET_TEST_SEARCH} actualizado`,
+              prioridadCodigo: 'HIGH',
+            }),
+          },
+        );
+        const updateBody =
+          (await updateResponse.json()) as TicketResponseBody;
+
+        assert.equal(updateResponse.status, 200);
+        assert.equal(updateBody.ticket.prioridadCodigo, 'HIGH');
+        assert.ok(
+          updateBody.ticket.historial.some(
+            (item) => item.tipoEventoCodigo === 'UPDATED',
+          ),
+        );
+
+        const forbiddenDetailResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}`,
+          { headers: otherRequesterHeaders },
+        );
+        const forbiddenDetailBody =
+          (await forbiddenDetailResponse.json()) as ErrorResponseBody;
+
+        assert.equal(forbiddenDetailResponse.status, 403);
+        assert.equal(forbiddenDetailBody.error.code, 'FORBIDDEN');
+
+        const technicianBeforeResponse = await fetch(
+          `${baseUrl}/api/tickets?search=${encodeURIComponent(ticketCode)}`,
+          { headers: technicianHeaders },
+        );
+        const technicianBeforeBody =
+          (await technicianBeforeResponse.json()) as TicketListResponseBody;
+
+        assert.equal(technicianBeforeResponse.status, 200);
+        assert.equal(technicianBeforeBody.tickets.length, 0);
+
+        const requesterAssignmentResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/assignment`,
+          {
+            method: 'PATCH',
+            headers: requesterHeaders,
+            body: JSON.stringify({
+              tecnicoId: technicianBody.usuario.id,
+            }),
+          },
+        );
+        const requesterAssignmentBody =
+          (await requesterAssignmentResponse.json()) as ErrorResponseBody;
+
+        assert.equal(requesterAssignmentResponse.status, 403);
+        assert.equal(
+          requesterAssignmentBody.error.code,
+          'FORBIDDEN',
+        );
+
+        const assignmentResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/assignment`,
+          {
+            method: 'PATCH',
+            headers: adminHeaders,
+            body: JSON.stringify({
+              tecnicoId: technicianBody.usuario.id,
+            }),
+          },
+        );
+        const assignmentBody =
+          (await assignmentResponse.json()) as TicketResponseBody;
+
+        assert.equal(assignmentResponse.status, 200);
+        assert.equal(assignmentBody.ticket.estadoCodigo, 'ASSIGNED');
+        assert.equal(
+          assignmentBody.ticket.tecnicoId,
+          technicianBody.usuario.id,
+        );
+
+        const technicianAfterResponse = await fetch(
+          `${baseUrl}/api/tickets?search=${encodeURIComponent(ticketCode)}`,
+          { headers: technicianHeaders },
+        );
+        const technicianAfterBody =
+          (await technicianAfterResponse.json()) as TicketListResponseBody;
+
+        assert.equal(technicianAfterResponse.status, 200);
+        assert.equal(technicianAfterBody.tickets.length, 1);
+        assert.equal(technicianAfterBody.tickets[0]?.id, ticketId);
+
+        const invalidTransitionResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/status`,
+          {
+            method: 'PATCH',
+            headers: technicianHeaders,
+            body: JSON.stringify({
+              estadoCodigo: 'RESOLVED',
+              solucion: 'Solución adelantada no permitida',
+            }),
+          },
+        );
+        const invalidTransitionBody =
+          (await invalidTransitionResponse.json()) as ErrorResponseBody;
+
+        assert.equal(invalidTransitionResponse.status, 409);
+        assert.equal(
+          invalidTransitionBody.error.code,
+          'INVALID_STATUS_TRANSITION',
+        );
+
+        const requesterLateUpdateResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}`,
+          {
+            method: 'PATCH',
+            headers: requesterHeaders,
+            body: JSON.stringify({
+              titulo: 'Cambio fuera de estado pendiente',
+            }),
+          },
+        );
+        const requesterLateUpdateBody =
+          (await requesterLateUpdateResponse.json()) as ErrorResponseBody;
+
+        assert.equal(requesterLateUpdateResponse.status, 409);
+        assert.equal(
+          requesterLateUpdateBody.error.code,
+          'TICKET_NOT_EDITABLE',
+        );
+
+        const progressResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/status`,
+          {
+            method: 'PATCH',
+            headers: technicianHeaders,
+            body: JSON.stringify({
+              estadoCodigo: 'IN_PROGRESS',
+            }),
+          },
+        );
+        const progressBody =
+          (await progressResponse.json()) as TicketResponseBody;
+
+        assert.equal(progressResponse.status, 200);
+        assert.equal(progressBody.ticket.estadoCodigo, 'IN_PROGRESS');
+
+        const noSolutionResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/status`,
+          {
+            method: 'PATCH',
+            headers: technicianHeaders,
+            body: JSON.stringify({
+              estadoCodigo: 'RESOLVED',
+            }),
+          },
+        );
+        const noSolutionBody =
+          (await noSolutionResponse.json()) as ErrorResponseBody;
+
+        assert.equal(noSolutionResponse.status, 400);
+        assert.equal(
+          noSolutionBody.error.code,
+          'SOLUTION_REQUIRED',
+        );
+
+        const resolutionResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/status`,
+          {
+            method: 'PATCH',
+            headers: technicianHeaders,
+            body: JSON.stringify({
+              estadoCodigo: 'RESOLVED',
+              solucion:
+                'Se reemplazó el componente defectuoso y se verificó el equipo.',
+            }),
+          },
+        );
+        const resolutionBody =
+          (await resolutionResponse.json()) as TicketResponseBody;
+
+        assert.equal(resolutionResponse.status, 200);
+        assert.equal(resolutionBody.ticket.estadoCodigo, 'RESOLVED');
+        assert.ok(resolutionBody.ticket.solucion);
+
+        const technicianCloseResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/status`,
+          {
+            method: 'PATCH',
+            headers: technicianHeaders,
+            body: JSON.stringify({
+              estadoCodigo: 'CLOSED',
+            }),
+          },
+        );
+        const technicianCloseBody =
+          (await technicianCloseResponse.json()) as ErrorResponseBody;
+
+        assert.equal(technicianCloseResponse.status, 403);
+        assert.equal(technicianCloseBody.error.code, 'FORBIDDEN');
+
+        const closeResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}/status`,
+          {
+            method: 'PATCH',
+            headers: adminHeaders,
+            body: JSON.stringify({
+              estadoCodigo: 'CLOSED',
+            }),
+          },
+        );
+        const closeBody =
+          (await closeResponse.json()) as TicketResponseBody;
+
+        assert.equal(closeResponse.status, 200);
+        assert.equal(closeBody.ticket.estadoCodigo, 'CLOSED');
+
+        const deleteResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}`,
+          {
+            method: 'DELETE',
+            headers: adminHeaders,
+            body: JSON.stringify({
+              motivo: 'Finalización de la prueba integral de tickets',
+            }),
+          },
+        );
+        const deleteBody =
+          (await deleteResponse.json()) as TicketResponseBody;
+
+        assert.equal(deleteResponse.status, 200);
+        assert.equal(deleteBody.ticket.activo, false);
+        assert.equal(
+          deleteBody.ticket.motivoEliminacion,
+          'Finalización de la prueba integral de tickets',
+        );
+
+        const eventTypes = deleteBody.ticket.historial.map(
+          (item) => item.tipoEventoCodigo,
+        );
+
+        for (const expectedEvent of [
+          'CREATED',
+          'UPDATED',
+          'ASSIGNED',
+          'STATUS_CHANGED',
+          'SOLUTION_RECORDED',
+          'DELETED',
+        ]) {
+          assert.ok(eventTypes.includes(expectedEvent));
+        }
+
+        await assert.rejects(
+          pool.query(
+            `UPDATE historial_tickets
+            SET observacion = 'Intento de modificación'
+            WHERE ticket_id = $1`,
+            [ticketId],
+          ),
+          /historial de tickets es inmutable/i,
+        );
+
+        const requesterDeletedResponse = await fetch(
+          `${baseUrl}/api/tickets/${ticketId}`,
+          { headers: requesterHeaders },
+        );
+        const requesterDeletedBody =
+          (await requesterDeletedResponse.json()) as ErrorResponseBody;
+
+        assert.equal(requesterDeletedResponse.status, 404);
+        assert.equal(
+          requesterDeletedBody.error.code,
+          'TICKET_NOT_FOUND',
+        );
+
+        const inactiveListResponse = await fetch(
+          `${baseUrl}/api/tickets?activo=false&search=${encodeURIComponent(ticketCode)}`,
+          { headers: adminHeaders },
+        );
+        const inactiveListBody =
+          (await inactiveListResponse.json()) as TicketListResponseBody;
+
+        assert.equal(inactiveListResponse.status, 200);
+        assert.ok(
+          inactiveListBody.tickets.some(
+            (ticket) => ticket.id === ticketId,
+          ),
+        );
+      } finally {
+        await pool.query(
+          `UPDATE tickets
+          SET
+            activo = FALSE,
+            actualizado_por_id = $1,
+            eliminado_por_id = $1,
+            motivo_eliminacion = 'Limpieza final de pruebas'
+          WHERE activo = TRUE
+            AND titulo ILIKE '%' || $2 || '%'`,
+          [adminBody.usuario.id, TICKET_TEST_SEARCH],
+        );
+
+        await pool.query(
+          'DELETE FROM usuarios WHERE correo = $1',
+          [OTHER_REQUESTER_EMAIL],
+        );
+      }
     },
   );
 });
