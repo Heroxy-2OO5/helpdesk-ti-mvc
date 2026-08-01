@@ -1,6 +1,8 @@
 import { Router } from 'express';
 
 import {
+    assignTicketController,
+    changeTicketStatusController,
     createTicketController,
     deactivateTicketController,
     getTicketController,
@@ -20,6 +22,18 @@ ticketRouter.route('/')
         authorizeRoles('ADMINISTRATOR', 'REQUESTER'),
         createTicketController,
     );
+
+ticketRouter.patch(
+    '/:id/assignment',
+    authorizeRoles('ADMINISTRATOR'),
+    assignTicketController,
+);
+
+ticketRouter.patch(
+    '/:id/status',
+    authorizeRoles('ADMINISTRATOR', 'TECHNICIAN'),
+    changeTicketStatusController,
+);
 
 ticketRouter.route('/:id')
     .get(getTicketController)

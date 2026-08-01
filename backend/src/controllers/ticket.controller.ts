@@ -2,6 +2,8 @@ import type { Request, RequestHandler } from 'express';
 
 import { HttpError } from '../errors/http-errors.js';
 import {
+    assignTicket,
+    changeTicketStatus,
     createTicket,
     deactivateTicket,
     getTicket,
@@ -11,6 +13,8 @@ import {
 import { validate } from '../utils/validate.js';
 import { idParamsSchema } from '../validators/common.validator.js';
 import {
+    assignTicketSchema,
+    changeTicketStatusSchema,
     createTicketSchema,
     deleteTicketSchema,
     ticketListQuerySchema,
@@ -146,6 +150,66 @@ export const deactivateTicketController: RequestHandler = async (
 
         response.status(200).json({
             message: 'Ticket eliminado correctamente',
+            ticket,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const assignTicketController: RequestHandler = async (
+    request,
+    response,
+    next,
+) => {
+    try {
+        const { id } = validate(
+            idParamsSchema,
+            request.params,
+        );
+        const input = validate(
+            assignTicketSchema,
+            request.body,
+        );
+        const ticket = await assignTicket(
+            id,
+            input,
+            getAuthenticatedUser(request),
+        );
+
+        response.status(200).json({
+            message: input.tecnicoId
+                ? 'Técnico asignado correctamente'
+                : 'Asignación retirada correctamente',
+            ticket,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const changeTicketStatusController: RequestHandler = async (
+    request,
+    response,
+    next,
+) => {
+    try {
+        const { id } = validate(
+            idParamsSchema,
+            request.params,
+        );
+        const input = validate(
+            changeTicketStatusSchema,
+            request.body,
+        );
+        const ticket = await changeTicketStatus(
+            id,
+            input,
+            getAuthenticatedUser(request),
+        );
+
+        response.status(200).json({
+            message: 'Estado del ticket actualizado correctamente',
             ticket,
         });
     } catch (error) {

@@ -66,6 +66,10 @@ interface IdRow extends QueryResultRow {
     id: string;
 }
 
+interface AllowedTransitionRow extends QueryResultRow {
+    permitido: boolean;
+}
+
 const TICKET_SUMMARY_COLUMNS = `
     t.id::text,
     t.codigo,
@@ -378,4 +382,75 @@ export const deactivateTicketById = async (
     const deactivatedId = result.rows[0]?.id;
 
     return deactivatedId ? findTicketById(deactivatedId) : null;
+};
+
+export const assignTechnicianById = async (
+    id: string,
+    technicianId: string | null,
+    administratorId: string,
+): Promise<TicketDetailWithoutHistory | null> => {
+    const result = await pool.query<IdRow>(
+        `UPDATE tickets
+        SET
+            tecnico_id = $2,
+            asignado_por_id = $3,
+            actualizado_por_id = $3,
+            estado_codigo = CASE
+                WHEN $2::bigint IS NULL THEN 'PENDING'
+                ELSE estado_codigo
+            END
+        WHERE id = $1
+        RETURNING id::text`,
+        [id, technicianId, administratorId],
+    );
+
+    const updatedId = result.rows[0]?.id;
+
+    return updatedId ? findTicketById(updatedId) : null;
+};
+
+export const isTransitionAllowed = async (
+    currentStatus: TicketStatusCode,
+    nextStatus: TicketStatusCode,
+): Promise<boolean> => {
+    const result = await pool.query<AllowedTransitionRow>(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM transiciones_estado
+            WHERE estado_origen_codigo = $1
+              AND estado_destino_codigo = $2
+        ) AS permitido`,
+        [currentStatus, nextStatus],
+    );
+
+    return result.rows[0]?.permitido ?? false;
+};
+
+export const changeTicketStatusById = async (
+    id: string,
+    status: TicketStatusCode,
+    solution: string | undefined,
+    userId: string,
+): Promise<TicketDetailWithoutHistory | null> => {
+    const result = await pool.query<IdRow>(
+        `UPDATE tickets
+        SET
+            estado_codigo = $2,
+            solucion = CASE
+                WHEN $3::text IS NOT NULL THEN $3
+                ELSE solucion
+            END,
+            solucion_por_id = CASE
+                WHEN $3::text IS NOT NULL THEN $4
+                ELSE solucion_por_id
+            END,
+            actualizado_por_id = $4
+        WHERE id = $1
+        RETURNING id::text`,
+        [id, status, solution ?? null, userId],
+    );
+
+    const updatedId = result.rows[0]?.id;
+
+    return updatedId ? findTicketById(updatedId) : null;
 };

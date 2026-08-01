@@ -100,6 +100,15 @@ export interface DeleteTicketInput {
     motivo: string;
 }
 
+export interface AssignTicketInput {
+    tecnicoId: string | null;
+}
+
+export interface ChangeTicketStatusInput {
+    estadoCodigo: TicketStatusCode;
+    solucion?: string;
+}
+
 export interface TicketFilters {
     page: number;
     limit: number;

@@ -1,11 +1,20 @@
 import { z } from 'zod';
 
-import { PRIORITY_CODES, TICKET_STATUS_CODES, } from '../types/ticket.types.js';
-import { idParamsSchema, paginationFields, } from './common.validator.js';
+import {
+    PRIORITY_CODES,
+    TICKET_STATUS_CODES,
+} from '../types/ticket.types.js';
+import {
+    idParamsSchema,
+    paginationFields,
+} from './common.validator.js';
 
 const idSchema = idParamsSchema.shape.id;
 
-const tituloSchema = z.string().trim().min(3, 'El título debe tener al menos 3 caracteres').max(150, 'El título no puede superar los 150 caracteres');
+const tituloSchema = z.string()
+    .trim()
+    .min(3, 'El título debe tener al menos 3 caracteres')
+    .max(150, 'El título no puede superar los 150 caracteres');
 
 const descripcionSchema = z.string()
     .trim()
@@ -61,4 +70,17 @@ export const deleteTicketSchema = z.object({
         .trim()
         .min(5, 'El motivo debe tener al menos 5 caracteres')
         .max(300, 'El motivo no puede superar los 300 caracteres'),
+}).strict();
+
+export const assignTicketSchema = z.object({
+    tecnicoId: idSchema.nullable(),
+}).strict();
+
+export const changeTicketStatusSchema = z.object({
+    estadoCodigo: estadoSchema,
+    solucion: z.string()
+        .trim()
+        .min(5, 'La solución debe tener al menos 5 caracteres')
+        .max(8000, 'La solución no puede superar los 8000 caracteres')
+        .optional(),
 }).strict();
