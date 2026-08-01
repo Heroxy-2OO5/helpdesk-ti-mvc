@@ -1,0 +1,337 @@
+<section class="page-header header-actions">
+    <div>
+        <p class="eyebrow">Gestión de incidencias</p>
+        <h1>Tickets de soporte</h1>
+
+        <p>
+            @if (currentUser()?.rol === 'ADMINISTRATOR') { Puedes consultar todos los tickets registrados. } @else if (currentUser()?.rol === 'TECHNICIAN') { Se muestran únicamente los tickets asignados a tu cuenta. } @else { Se muestran únicamente los tickets que
+            has registrado. }
+        </p>
+    </div>
+
+    @if (canCreateTicket()) {
+    <button class="button button-primary" type="button" (click)="openCreateForm()">
+      Nuevo ticket
+    </button> }
+</section>
+
+@if (successMessage()) {
+<div class="alert alert-success message">
+    {{ successMessage() }}
+</div>
+} @if (errorMessage()) {
+<div class="alert alert-error message" role="alert">
+    {{ errorMessage() }}
+</div>
+} @if (showCreateForm()) {
+<section class="panel create-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Registrar nuevo ticket</h2>
+            <p>
+                Completa la información de la incidencia.
+            </p>
+        </div>
+
+        <button class="close-button" type="button" aria-label="Cerrar formulario" (click)="closeCreateForm()">
+        ×
+      </button>
+    </div>
+
+    <form [formGroup]="createForm" (ngSubmit)="createTicket()">
+        <div class="form-grid">
+            <div class="field field-wide">
+                <label for="titulo">Título</label>
+
+                <input id="titulo" type="text" formControlName="titulo" maxlength="150" placeholder="Ejemplo: El computador no inicia" /> @if ( createForm.controls.titulo.touched && createForm.controls.titulo.invalid ) {
+                <small class="field-error">
+              El título debe tener entre 3 y 150 caracteres.
+            </small> }
+            </div>
+
+            <div class="field">
+                <label for="categoriaId">Categoría</label>
+
+                <select id="categoriaId" formControlName="categoriaId">
+            <option value="">Selecciona una categoría</option>
+
+            @for (
+              category of categories();
+              track category.id
+            ) {
+              <option [value]="category.id">
+                {{ category.nombre }}
+              </option>
+            }
+          </select> @if ( createForm.controls.categoriaId.touched && createForm.controls.categoriaId.invalid ) {
+                <small class="field-error">
+              La categoría es obligatoria.
+            </small> }
+            </div>
+
+            <div class="field">
+                <label for="prioridadCodigo">Prioridad</label>
+
+                <select id="prioridadCodigo" formControlName="prioridadCodigo">
+            <option value="">Selecciona una prioridad</option>
+
+            @for (
+              priority of priorities();
+              track priority.codigo
+            ) {
+              <option [value]="priority.codigo">
+                {{ priority.nombre }}
+              </option>
+            }
+          </select> @if ( createForm.controls.prioridadCodigo.touched && createForm.controls.prioridadCodigo.invalid ) {
+                <small class="field-error">
+              La prioridad es obligatoria.
+            </small> }
+            </div>
+
+            @if (isAdministrator()) {
+            <div class="field field-wide">
+                <label for="solicitanteId">Solicitante</label>
+
+                <select id="solicitanteId" formControlName="solicitanteId">
+              <option value="">Selecciona un solicitante</option>
+
+              @for (
+                requester of requesters();
+                track requester.id
+              ) {
+                <option [value]="requester.id">
+                  {{ requester.nombreCompleto }}
+                  — {{ requester.correo }}
+                </option>
+              }
+            </select>
+            </div>
+            }
+
+            <div class="field field-wide">
+                <label for="descripcion">Descripción</label>
+
+                <textarea id="descripcion" formControlName="descripcion" rows="6" maxlength="4000" placeholder="Describe detalladamente el problema presentado"></textarea> @if ( createForm.controls.descripcion.touched && createForm.controls.descripcion.invalid
+                ) {
+                <small class="field-error">
+              La descripción debe tener entre 10 y 4000 caracteres.
+            </small> }
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="button button-secondary" type="button" [disabled]="savingTicket()" (click)="closeCreateForm()">
+          Cancelar
+        </button>
+
+            <button class="button button-primary" type="submit" [disabled]="savingTicket() || loadingOptions()">
+          {{ savingTicket() ? 'Guardando...' : 'Crear ticket' }}
+        </button>
+        </div>
+    </form>
+</section>
+}
+
+<section class="panel filters-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Búsqueda y filtros</h2>
+            <p>Localiza tickets por código, título o clasificación.</p>
+        </div>
+    </div>
+
+    <form class="filters-form" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+        <div class="filter-grid">
+            <div class="field search-field">
+                <label for="search">Código o título</label>
+
+                <input id="search" type="search" formControlName="search" maxlength="150" placeholder="Ejemplo: TKT-2026 o impresora" />
+            </div>
+
+            <div class="field">
+                <label for="estado">Estado</label>
+
+                <select id="estado" formControlName="estado">
+          <option value="">Todos</option>
+
+          @for (state of states(); track state.codigo) {
+            <option [value]="state.codigo">
+              {{ state.nombre }}
+            </option>
+          }
+        </select>
+            </div>
+
+            <div class="field">
+                <label for="prioridad">Prioridad</label>
+
+                <select id="prioridad" formControlName="prioridad">
+          <option value="">Todas</option>
+
+          @for (
+            priority of priorities();
+            track priority.codigo
+          ) {
+            <option [value]="priority.codigo">
+              {{ priority.nombre }}
+            </option>
+          }
+        </select>
+            </div>
+
+            <div class="field">
+                <label for="categoriaFiltro">Categoría</label>
+
+                <select id="categoriaFiltro" formControlName="categoriaId">
+          <option value="">Todas</option>
+
+          @for (
+            category of categories();
+            track category.id
+          ) {
+            <option [value]="category.id">
+              {{ category.nombre }}
+            </option>
+          }
+        </select>
+            </div>
+
+            @if (isAdministrator()) {
+            <div class="field">
+                <label for="tecnicoId">Técnico</label>
+
+                <select id="tecnicoId" formControlName="tecnicoId">
+            <option value="">Todos</option>
+
+            @for (
+              technician of technicians();
+              track technician.id
+            ) {
+              <option [value]="technician.id">
+                {{ technician.nombreCompleto }}
+              </option>
+            }
+          </select>
+            </div>
+            }
+        </div>
+
+        <div class="filter-actions">
+            <button class="button button-secondary" type="button" (click)="clearFilters()">
+        Limpiar
+      </button>
+
+            <button class="button button-primary" type="submit" [disabled]="loadingTickets()">
+        {{ loadingTickets() ? 'Buscando...' : 'Aplicar filtros' }}
+      </button>
+        </div>
+    </form>
+</section>
+
+<section class="panel tickets-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Resultados</h2>
+            <p>
+                {{ pagination().total }} ticket(s) encontrado(s).
+            </p>
+        </div>
+    </div>
+
+    @if (loadingTickets()) {
+    <div class="empty-state">
+        Consultando tickets...
+    </div>
+    } @else if (tickets().length === 0) {
+    <div class="empty-state">
+        <strong>No existen tickets para mostrar.</strong>
+        <span>Prueba cambiando los filtros utilizados.</span>
+    </div>
+    } @else {
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Ticket</th>
+                    <th>Categoría</th>
+                    <th>Prioridad</th>
+                    <th>Estado</th>
+                    <th>Responsable</th>
+                    <th>Fecha</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @for (ticket of tickets(); track ticket.id) {
+                <tr>
+                    <td>
+                        <strong>{{ ticket.codigo }}</strong>
+                    </td>
+
+                    <td>
+                        <span class="ticket-title">
+                  {{ ticket.titulo }}
+                </span> @if (isAdministrator()) {
+                        <small>
+                    Solicitante: {{ ticket.solicitante }}
+                  </small> }
+                    </td>
+
+                    <td>{{ ticket.categoria }}</td>
+
+                    <td>
+                        <span [class]="priorityClass(
+                    ticket.prioridadCodigo
+                  )">
+                  {{ ticket.prioridad }}
+                </span>
+                    </td>
+
+                    <td>
+                        <span [class]="statusClass(
+                    ticket.estadoCodigo
+                  )">
+                  {{ ticket.estado }}
+                </span>
+                    </td>
+
+                    <td>
+                        {{ ticket.tecnico ?? 'Sin asignar' }}
+                    </td>
+
+                    <td>
+                        {{ ticket.creadoEn | date: 'dd/MM/yyyy HH:mm' }}
+                    </td>
+
+                    <td>
+                        <a class="detail-link" [routerLink]="['/tickets', ticket.id]">
+                  Ver detalle
+                </a>
+                    </td>
+                </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination">
+        <button class="button button-secondary" type="button" [disabled]="pagination().page <= 1" (click)="previousPage()">
+        Anterior
+      </button>
+
+        <span>
+        Página {{ pagination().page }}
+        de {{ pagination().totalPages || 1 }}
+      </span>
+
+        <button class="button button-secondary" type="button" [disabled]="
+          pagination().page >= pagination().totalPages
+        " (click)="nextPage()">
+        Siguiente
+      </button>
+    </div>
+    }
+</section>
