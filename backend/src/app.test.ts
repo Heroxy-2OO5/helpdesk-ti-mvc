@@ -132,6 +132,44 @@ interface TicketListResponseBody {
   };
 }
 
+interface MetricsResponseBody {
+  metricas: {
+    resumen: {
+      totalTickets: number;
+      pendientes: number;
+      asignados: number;
+      enProceso: number;
+      resueltos: number;
+      cerrados: number;
+      horasPromedioResolucion: number | null;
+    };
+    porEstado: Array<{
+      estadoCodigo: string;
+      estado: string;
+      ordenFlujo: number;
+      cantidad: number;
+    }>;
+    porPrioridad: Array<{
+      prioridadCodigo: string;
+      prioridad: string;
+      nivel: number;
+      cantidad: number;
+    }>;
+    porCategoria: Array<{
+      categoriaId: string;
+      categoria: string;
+      cantidad: number;
+    }>;
+    porTecnico: Array<{
+      tecnicoId: string;
+      tecnico: string;
+      totalAsignados: number;
+      cargaActual: number;
+      finalizados: number;
+    }>;
+  };
+}
+
 let server: Server;
 let baseUrl: string;
 
@@ -1810,6 +1848,163 @@ describe('API HelpDesk TI', () => {
           [OTHER_REQUESTER_EMAIL],
         );
       }
+    },
+  );
+
+  test(
+    'GET /api/metrics rechaza solicitudes sin token',
+    async () => {
+      const response = await fetch(
+        `${baseUrl}/api/metrics`,
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 401);
+      assert.equal(body.error.code, 'UNAUTHORIZED');
+    },
+  );
+
+  test(
+    'un solicitante recibe 403 al consultar métricas',
+    async () => {
+      const loginResult = await requestLogin(
+        REQUESTER_EMAIL,
+        REQUESTER_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/metrics`,
+        {
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+          },
+        },
+      );
+
+      const body =
+        (await response.json()) as ErrorResponseBody;
+
+      assert.equal(response.status, 403);
+      assert.equal(body.error.code, 'FORBIDDEN');
+    },
+  );
+
+  test(
+    'un administrador obtiene métricas consistentes con PostgreSQL',
+    async () => {
+      const loginResult = await requestLogin(
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+      const loginBody = getLoginBody(loginResult.body);
+
+      const response = await fetch(
+        `${baseUrl}/api/metrics`,
+        {
+          headers: {
+            authorization: `Bearer ${loginBody.token}`,
+          },
+        },
+      );
+      const body =
+        (await response.json()) as MetricsResponseBody;
+
+      assert.equal(response.status, 200);
+
+      const databaseResult = await pool.query<{
+        total_tickets: string;
+        pendientes: string;
+        asignados: string;
+        en_proceso: string;
+        resueltos: string;
+        cerrados: string;
+      }>(
+        `SELECT
+          total_tickets,
+          pendientes,
+          asignados,
+          en_proceso,
+          resueltos,
+          cerrados
+        FROM vw_metricas_resumen`,
+      );
+      const databaseMetrics = databaseResult.rows[0];
+
+      assert.ok(databaseMetrics);
+      assert.equal(
+        body.metricas.resumen.totalTickets,
+        Number(databaseMetrics.total_tickets),
+      );
+      assert.equal(
+        body.metricas.resumen.pendientes,
+        Number(databaseMetrics.pendientes),
+      );
+      assert.equal(
+        body.metricas.resumen.asignados,
+        Number(databaseMetrics.asignados),
+      );
+      assert.equal(
+        body.metricas.resumen.enProceso,
+        Number(databaseMetrics.en_proceso),
+      );
+      assert.equal(
+        body.metricas.resumen.resueltos,
+        Number(databaseMetrics.resueltos),
+      );
+      assert.equal(
+        body.metricas.resumen.cerrados,
+        Number(databaseMetrics.cerrados),
+      );
+
+      const totalByStatus = body.metricas.porEstado.reduce(
+        (total, item) => total + item.cantidad,
+        0,
+      );
+
+      assert.equal(
+        totalByStatus,
+        body.metricas.resumen.totalTickets,
+      );
+      assert.deepEqual(
+        body.metricas.porEstado.map(
+          (item) => item.estadoCodigo,
+        ),
+        [
+          'PENDING',
+          'ASSIGNED',
+          'IN_PROGRESS',
+          'RESOLVED',
+          'CLOSED',
+        ],
+      );
+      assert.deepEqual(
+        body.metricas.porPrioridad.map(
+          (item) => item.prioridadCodigo,
+        ),
+        ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'],
+      );
+      assert.ok(body.metricas.porCategoria.length > 0);
+      assert.ok(body.metricas.porTecnico.length > 0);
+
+      for (const item of body.metricas.porTecnico) {
+        assert.equal(typeof item.totalAsignados, 'number');
+        assert.equal(typeof item.cargaActual, 'number');
+        assert.equal(typeof item.finalizados, 'number');
+        assert.ok(item.totalAsignados >= 0);
+        assert.ok(item.cargaActual >= 0);
+        assert.ok(item.finalizados >= 0);
+      }
+
+      const average =
+        body.metricas.resumen.horasPromedioResolucion;
+
+      assert.ok(
+        average === null
+        || (Number.isFinite(average) && average >= 0),
+      );
     },
   );
 });
