@@ -230,3 +230,42 @@ export interface MetricsDashboard {
         finalizados: number;
     }>;
 }
+
+export interface UserListFilters {
+    page?: number;
+    limit?: number;
+    search?: string;
+    rol?: Role;
+    activo?: boolean;
+}
+
+export interface CategoryListFilters {
+    page?: number;
+    limit?: number;
+    search?: string;
+    activo?: boolean;
+}
+
+export interface TicketListFilters {
+    page?: number;
+    limit?: number;
+    search?: string;
+    estado?: TicketsStatusCode;
+    prioridad?: PriorityCode;
+    categoriaId?: string;
+    tecnicoId?: string;
+    activo?: boolean;
+}
+
+export interface DeleteTicketInput {
+    motivo: string;
+}
+
+export interface AssignTicketInput {
+    tecnicoId: string | null;
+}
+
+export interface ChangeTicketStatusInput {
+    estadoCodigo: TicketsStatusCode;
+    solucion?: string;
+}
