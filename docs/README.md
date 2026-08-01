@@ -8,6 +8,7 @@ proyecto HelpDesk TI.
 - [Requisitos funcionales y no funcionales](requisitos.md)
 - [Paso 6: inicialización del backend](paso-06-backend.md)
 - [Paso 8: autenticación y autorización](paso-08-autenticacion.md)
+- [Paso 9: CRUD y gestión de tickets](paso-09-crud.md)
 
 La documentación de la base de datos, el diagrama entidad-relación y el
 diccionario de datos están disponibles en la carpeta `database`.
