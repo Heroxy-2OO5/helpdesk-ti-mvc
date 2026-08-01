@@ -1,0 +1,194 @@
+<button class="back-button" type="button" (click)="goBack()">
+  ← Volver a tickets
+</button> @if (errorMessage()) {
+<div class="alert alert-error message" role="alert">
+    {{ errorMessage() }}
+</div>
+} @if (successMessage()) {
+<div class="alert alert-success message">
+    {{ successMessage() }}
+</div>
+} @if (loading()) {
+<section class="panel loading-panel">
+    Consultando información del ticket...
+</section>
+} @else if (ticket(); as currentTicket) {
+<section class="page-header detail-header">
+    <div>
+        <p class="eyebrow">{{ currentTicket.codigo }}</p>
+        <h1>{{ currentTicket.titulo }}</h1>
+
+        <p>
+            Registrado por {{ currentTicket.solicitante }} el {{ currentTicket.creadoEn | date: 'dd/MM/yyyy HH:mm' }}
+        </p>
+    </div>
+
+    <span [class]="statusClass(currentTicket.estadoCodigo)">
+      {{ currentTicket.estado }}
+    </span>
+</section>
+
+<section class="detail-grid">
+    <article class="panel information-panel">
+        <h2>Información general</h2>
+
+        <dl class="details">
+            <div>
+                <dt>Código</dt>
+                <dd>{{ currentTicket.codigo }}</dd>
+            </div>
+
+            <div>
+                <dt>Solicitante</dt>
+                <dd>{{ currentTicket.solicitante }}</dd>
+            </div>
+
+            <div>
+                <dt>Correo</dt>
+                <dd>{{ currentTicket.correoSolicitante }}</dd>
+            </div>
+
+            <div>
+                <dt>Categoría</dt>
+                <dd>{{ currentTicket.categoria }}</dd>
+            </div>
+
+            <div>
+                <dt>Prioridad</dt>
+                <dd>
+                    <span [class]="priorityClass(
+                currentTicket.prioridadCodigo
+              )">
+              {{ currentTicket.prioridad }}
+            </span>
+                </dd>
+            </div>
+
+            <div>
+                <dt>Estado</dt>
+                <dd>{{ currentTicket.estado }}</dd>
+            </div>
+
+            <div>
+                <dt>Técnico responsable</dt>
+                <dd>
+                    {{ currentTicket.tecnico ?? 'Sin asignar' }}
+                </dd>
+            </div>
+
+            <div>
+                <dt>Última actualización</dt>
+                <dd>
+                    {{ currentTicket.actualizadoEn | date: 'dd/MM/yyyy HH:mm' }}
+                </dd>
+            </div>
+        </dl>
+    </article>
+
+    <article class="panel description-panel">
+        <h2>Descripción de la incidencia</h2>
+
+        <p class="description">
+            {{ currentTicket.descripcion }}
+        </p>
+
+        @if (currentTicket.solucion) {
+        <div class="solution-box">
+            <h3>Solución registrada</h3>
+            <p>{{ currentTicket.solucion }}</p>
+        </div>
+        }
+    </article>
+</section>
+
+@if (canEdit()) {
+<section class="panel edit-panel">
+    <div class="panel-heading">
+        <div>
+            <h2>Actualizar ticket</h2>
+
+            <p>
+                @if (isAdministrator()) { Como administrador puedes corregir la información general del ticket. } @else { Puedes actualizarlo mientras permanezca pendiente. }
+            </p>
+        </div>
+    </div>
+
+    <form [formGroup]="updateForm" (ngSubmit)="updateTicket()">
+        <div class="form-grid">
+            <div class="field field-wide">
+                <label for="titulo">Título</label>
+
+                <input id="titulo" type="text" formControlName="titulo" maxlength="150" /> @if ( updateForm.controls.titulo.touched && updateForm.controls.titulo.invalid ) {
+                <small class="field-error">
+                El título debe tener entre 3 y 150 caracteres.
+              </small> }
+            </div>
+
+            <div class="field">
+                <label for="categoriaId">Categoría</label>
+
+                <select id="categoriaId" formControlName="categoriaId">
+              @for (
+                category of categories();
+                track category.id
+              ) {
+                <option
+                  [value]="category.id"
+                  [disabled]="
+                    !category.activo &&
+                    category.id !== currentTicket.categoriaId
+                  "
+                >
+                  {{ category.nombre }}
+                  {{ category.activo ? '' : '(Inactiva)' }}
+                </option>
+              }
+            </select>
+            </div>
+
+            <div class="field">
+                <label for="prioridadCodigo">Prioridad</label>
+
+                <select id="prioridadCodigo" formControlName="prioridadCodigo">
+              @for (
+                priority of priorities();
+                track priority.codigo
+              ) {
+                <option [value]="priority.codigo">
+                  {{ priority.nombre }}
+                </option>
+              }
+            </select>
+            </div>
+
+            <div class="field field-wide">
+                <label for="descripcion">Descripción</label>
+
+                <textarea id="descripcion" formControlName="descripcion" rows="7" maxlength="4000"></textarea> @if ( updateForm.controls.descripcion.touched && updateForm.controls.descripcion.invalid ) {
+                <small class="field-error">
+                La descripción debe tener entre 10 y 4000
+                caracteres.
+              </small> }
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="button button-primary" type="submit" [disabled]="saving()">
+            {{
+              saving()
+                ? 'Guardando cambios...'
+                : 'Guardar cambios'
+            }}
+          </button>
+        </div>
+    </form>
+</section>
+} @else {
+<section class="panel permission-panel">
+    <h2>Actualización no disponible</h2>
+
+    <p>
+        @if (currentUser()?.rol === 'TECHNICIAN') { Los técnicos no pueden modificar los datos generales del ticket. } @else { Los solicitantes solo pueden modificar tickets que permanezcan pendientes. }
+    </p>
+</section>
+} }

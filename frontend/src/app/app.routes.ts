@@ -13,6 +13,10 @@ export const routes: Routes = [
         loadComponent: () => import( './layout/app-shell/app-shell.component').then((component) => component.AppShellComponent),
         children: [
             {
+                path: 'tickets/:id',
+                loadComponent: () => import( './features/tickets/ticket-detail/ticket-detail.component').then((component) => component.TicketDetailComponent),
+            },
+            {
                 path: 'tickets',
                 loadComponent: () => import( './features/tickets/ticket-list/ticket-list.component').then((component) => component.TicketListComponent,),
             },
