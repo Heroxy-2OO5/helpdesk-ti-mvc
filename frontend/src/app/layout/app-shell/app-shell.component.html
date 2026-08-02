@@ -10,7 +10,14 @@
 
         <a routerLink="/tickets" routerLinkActive="active">
             Tickets
+        </a> @if (user()?.rol === 'ADMINISTRATOR') {
+        <a routerLink="/administracion/usuarios" routerLinkActive="active">
+            Usuarios
         </a>
+
+        <a routerLink="/administracion/categorias" routerLinkActive="active">
+            Categorías
+        </a> }
     </nav>
 
     <div class="user-area">

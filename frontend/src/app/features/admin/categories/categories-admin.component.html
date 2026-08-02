@@ -1,0 +1,208 @@
+<section class="admin-page">
+    <header class="page-heading">
+        <div>
+            <span class="eyebrow">Administración</span>
+            <h1>Gestión de categorías</h1>
+            <p>
+                Administra las áreas utilizadas para clasificar las solicitudes de soporte.
+            </p>
+        </div>
+
+        <button type="button" class="button button-primary" (click)="abrirCreacion()">
+      <span aria-hidden="true">＋</span>
+      Nueva categoría
+    </button>
+    </header>
+
+    @if (mensajeExito()) {
+    <div class="alert alert-success" role="status">
+        <span>✓</span> {{ mensajeExito() }}
+    </div>
+    } @if (mensajeError() && !formularioAbierto()) {
+    <div class="alert alert-error" role="alert">
+        <span>!</span> {{ mensajeError() }}
+    </div>
+    }
+
+    <form class="filter-card categories-filter" [formGroup]="filtrosForm" (ngSubmit)="aplicarFiltros()">
+        <div class="field field-search">
+            <label for="category-search">Buscar categoría</label>
+            <input id="category-search" type="search" formControlName="search" placeholder="Nombre o descripción" />
+        </div>
+
+        <div class="field">
+            <label for="category-status">Estado</label>
+            <select id="category-status" formControlName="activo">
+        <option value="">Todos los estados</option>
+        <option value="true">Activa</option>
+        <option value="false">Inactiva</option>
+      </select>
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary" [disabled]="cargando()">
+        Buscar
+      </button>
+
+            <button type="button" class="button button-secondary" (click)="limpiarFiltros()">
+        Limpiar
+      </button>
+        </div>
+    </form>
+
+    <article class="table-card">
+        <div class="table-heading">
+            <div>
+                <h2>Categorías registradas</h2>
+                <p>{{ totalRegistros() }} registro(s) encontrado(s)</p>
+            </div>
+
+            <button type="button" class="button button-icon" title="Actualizar listado" [disabled]="cargando()" (click)="cargarCategorias(pagina())">
+        ↻
+      </button>
+        </div>
+
+        @if (cargando()) {
+        <div class="loading-state">
+            <span class="spinner"></span> Consultando categorías...
+        </div>
+        } @else if (categorias().length === 0) {
+        <div class="empty-state">
+            <span class="empty-icon">◇</span>
+            <h3>No se encontraron categorías</h3>
+            <p>Prueba modificando los filtros de búsqueda.</p>
+        </div>
+        } @else {
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Categoría</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th>Actualización</th>
+                        <th class="actions-column">Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (categoria of categorias(); track categoria.id) {
+                    <tr>
+                        <td>
+                            <strong>{{ categoria.nombre }}</strong>
+                        </td>
+
+                        <td class="description-cell">
+                            {{ categoria.descripcion || 'Sin descripción' }}
+                        </td>
+
+                        <td>
+                            <span class="badge" [class.status-active]="categoria.activo" [class.status-inactive]="!categoria.activo">
+                    {{ categoria.activo ? 'Activa' : 'Inactiva' }}
+                  </span>
+                        </td>
+
+                        <td>
+                            {{ categoria.actualizadoEn | date: 'dd/MM/yyyy HH:mm' }}
+                        </td>
+
+                        <td>
+                            <div class="row-actions">
+                                <button type="button" class="action-button action-edit" (click)="abrirEdicion(categoria)">
+                      Editar
+                    </button> @if (categoria.activo) {
+                                <button type="button" class="action-button action-danger" [disabled]="procesandoId() === categoria.id" (click)="desactivarCategoria(categoria)">
+                        {{ procesandoId() === categoria.id
+                          ? 'Procesando...'
+                          : 'Desactivar' }}
+                      </button> } @else {
+                                <button type="button" class="action-button action-success" [disabled]="procesandoId() === categoria.id" (click)="reactivarCategoria(categoria)">
+                        {{ procesandoId() === categoria.id
+                          ? 'Procesando...'
+                          : 'Reactivar' }}
+                      </button> }
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="pagination">
+            <span>
+          Página {{ pagina() }} de {{ totalPaginas() }}
+        </span>
+
+            <div>
+                <button type="button" class="button button-secondary" [disabled]="pagina() <= 1 || cargando()" (click)="paginaAnterior()">
+            Anterior
+          </button>
+
+                <button type="button" class="button button-secondary" [disabled]="pagina() >= totalPaginas() || cargando()" (click)="paginaSiguiente()">
+            Siguiente
+          </button>
+            </div>
+        </footer>
+        }
+    </article>
+</section>
+
+@if (formularioAbierto()) {
+<div class="modal-backdrop" role="presentation" (click)="cerrarFormulario()">
+    <section class="modal-card modal-card-small" role="dialog" aria-modal="true" aria-labelledby="category-form-title" (click)="$event.stopPropagation()">
+        <header class="modal-heading">
+            <div>
+                <span class="eyebrow">Formulario</span>
+
+                <h2 id="category-form-title">
+                    {{ categoriaEditandoId() ? 'Actualizar categoría' : 'Crear categoría' }}
+                </h2>
+            </div>
+
+            <button type="button" class="modal-close" aria-label="Cerrar formulario" [disabled]="guardando()" (click)="cerrarFormulario()">
+          ×
+        </button>
+        </header>
+
+        @if (mensajeError()) {
+        <div class="alert alert-error" role="alert">
+            <span>!</span> {{ mensajeError() }}
+        </div>
+        }
+
+        <form class="entity-form" [formGroup]="categoriaForm" (ngSubmit)="guardarCategoria()">
+            <div class="field">
+                <label for="category-name">Nombre</label>
+                <input id="category-name" type="text" formControlName="nombre" placeholder="Ejemplo: Redes" /> @if ( categoriaForm.controls.nombre.touched && categoriaForm.controls.nombre.invalid ) {
+                <small class="field-error">
+              Escribe un nombre de entre 2 y 80 caracteres.
+            </small> }
+            </div>
+
+            <div class="field">
+                <label for="category-description">Descripción</label>
+                <textarea id="category-description" formControlName="descripcion" rows="5" maxlength="300" placeholder="Describe qué tipos de incidencias pertenecen a esta categoría"></textarea>
+
+                <small class="character-count">
+            {{ categoriaForm.controls.descripcion.value.length }}/300
+          </small>
+            </div>
+
+            <footer class="modal-actions">
+                <button type="button" class="button button-secondary" [disabled]="guardando()" (click)="cerrarFormulario()">
+            Cancelar
+          </button>
+
+                <button type="submit" class="button button-primary" [disabled]="guardando()">
+            {{ guardando()
+              ? 'Guardando...'
+              : categoriaEditandoId()
+                ? 'Guardar cambios'
+                : 'Crear categoría' }}
+          </button>
+            </footer>
+        </form>
+    </section>
+</div>
+}

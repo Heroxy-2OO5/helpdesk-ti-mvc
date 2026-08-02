@@ -1,0 +1,260 @@
+<section class="admin-page">
+    <header class="page-heading">
+        <div>
+            <span class="eyebrow">Administración</span>
+            <h1>Gestión de usuarios</h1>
+            <p>
+                Crea usuarios, actualiza sus datos, asigna roles y controla el acceso al sistema.
+            </p>
+        </div>
+
+        <button type="button" class="button button-primary" (click)="abrirCreacion()">
+      <span aria-hidden="true">＋</span>
+      Nuevo usuario
+    </button>
+    </header>
+
+    @if (mensajeExito()) {
+    <div class="alert alert-success" role="status">
+        <span>✓</span> {{ mensajeExito() }}
+    </div>
+    } @if (mensajeError() && !formularioAbierto()) {
+    <div class="alert alert-error" role="alert">
+        <span>!</span> {{ mensajeError() }}
+    </div>
+    }
+
+    <form class="filter-card" [formGroup]="filtrosForm" (ngSubmit)="aplicarFiltros()">
+        <div class="field field-search">
+            <label for="user-search">Buscar usuario</label>
+            <input id="user-search" type="search" formControlName="search" placeholder="Nombre o correo electrónico" />
+        </div>
+
+        <div class="field">
+            <label for="user-role">Rol</label>
+            <select id="user-role" formControlName="rol">
+        <option value="">Todos los roles</option>
+
+        @for (rol of roles; track rol.codigo) {
+          <option [value]="rol.codigo">
+            {{ rol.nombre }}
+          </option>
+        }
+      </select>
+        </div>
+
+        <div class="field">
+            <label for="user-status">Estado</label>
+            <select id="user-status" formControlName="activo">
+        <option value="">Todos los estados</option>
+        <option value="true">Activo</option>
+        <option value="false">Inactivo</option>
+      </select>
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="button button-primary" [disabled]="cargando()">
+        Buscar
+      </button>
+
+            <button type="button" class="button button-secondary" (click)="limpiarFiltros()">
+        Limpiar
+      </button>
+        </div>
+    </form>
+
+    <article class="table-card">
+        <div class="table-heading">
+            <div>
+                <h2>Usuarios registrados</h2>
+                <p>{{ totalRegistros() }} registro(s) encontrado(s)</p>
+            </div>
+
+            <button type="button" class="button button-icon" title="Actualizar listado" [disabled]="cargando()" (click)="cargarUsuarios(pagina())">
+        ↻
+      </button>
+        </div>
+
+        @if (cargando()) {
+        <div class="loading-state">
+            <span class="spinner"></span> Consultando usuarios...
+        </div>
+        } @else if (usuarios().length === 0) {
+        <div class="empty-state">
+            <span class="empty-icon">◎</span>
+            <h3>No se encontraron usuarios</h3>
+            <p>Prueba modificando los filtros de búsqueda.</p>
+        </div>
+        } @else {
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th>Último acceso</th>
+                        <th class="actions-column">Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (usuario of usuarios(); track usuario.id) {
+                    <tr>
+                        <td>
+                            <div class="user-cell">
+                                <span class="avatar">
+                      {{ usuario.nombreCompleto.charAt(0).toUpperCase() }}
+                    </span>
+
+                                <div>
+                                    <strong>{{ usuario.nombreCompleto }}</strong>
+                                    <small>{{ usuario.correo }}</small>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td>
+                            <span class="badge" [ngClass]="claseRol(usuario.rol)">
+                    {{ nombreRol(usuario.rol) }}
+                  </span>
+                        </td>
+
+                        <td>
+                            <span class="badge" [class.status-active]="usuario.activo" [class.status-inactive]="!usuario.activo">
+                    {{ usuario.activo ? 'Activo' : 'Inactivo' }}
+                  </span>
+                        </td>
+
+                        <td>
+                            @if (usuario.ultimoAccesoEn) { {{ usuario.ultimoAccesoEn | date: 'dd/MM/yyyy HH:mm' }} } @else {
+                            <span class="muted">Sin accesos</span> }
+                        </td>
+
+                        <td>
+                            <div class="row-actions">
+                                <button type="button" class="action-button action-edit" (click)="abrirEdicion(usuario)">
+                      Editar
+                    </button> @if (usuario.activo) {
+                                <button type="button" class="action-button action-danger" [disabled]="procesandoId() === usuario.id" (click)="desactivarUsuario(usuario)">
+                        {{ procesandoId() === usuario.id
+                          ? 'Procesando...'
+                          : 'Desactivar' }}
+                      </button> } @else {
+                                <button type="button" class="action-button action-success" [disabled]="procesandoId() === usuario.id" (click)="reactivarUsuario(usuario)">
+                        {{ procesandoId() === usuario.id
+                          ? 'Procesando...'
+                          : 'Reactivar' }}
+                      </button> }
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="pagination">
+            <span>
+          Página {{ pagina() }} de {{ totalPaginas() }}
+        </span>
+
+            <div>
+                <button type="button" class="button button-secondary" [disabled]="pagina() <= 1 || cargando()" (click)="paginaAnterior()">
+            Anterior
+          </button>
+
+                <button type="button" class="button button-secondary" [disabled]="pagina() >= totalPaginas() || cargando()" (click)="paginaSiguiente()">
+            Siguiente
+          </button>
+            </div>
+        </footer>
+        }
+    </article>
+</section>
+
+@if (formularioAbierto()) {
+<div class="modal-backdrop" role="presentation" (click)="cerrarFormulario()">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="user-form-title" (click)="$event.stopPropagation()">
+        <header class="modal-heading">
+            <div>
+                <span class="eyebrow">Formulario</span>
+
+                <h2 id="user-form-title">
+                    {{ usuarioEditandoId() ? 'Actualizar usuario' : 'Crear usuario' }}
+                </h2>
+            </div>
+
+            <button type="button" class="modal-close" aria-label="Cerrar formulario" [disabled]="guardando()" (click)="cerrarFormulario()">
+          ×
+        </button>
+        </header>
+
+        @if (mensajeError()) {
+        <div class="alert alert-error" role="alert">
+            <span>!</span> {{ mensajeError() }}
+        </div>
+        }
+
+        <form class="entity-form" [formGroup]="usuarioForm" (ngSubmit)="guardarUsuario()">
+            <div class="form-grid">
+                <div class="field field-full">
+                    <label for="full-name">Nombre completo</label>
+                    <input id="full-name" type="text" formControlName="nombreCompleto" autocomplete="name" placeholder="Ejemplo: Ana Pérez" /> @if ( usuarioForm.controls.nombreCompleto.touched && usuarioForm.controls.nombreCompleto.invalid ) {
+                    <small class="field-error">
+                Escribe un nombre de entre 3 y 120 caracteres.
+              </small> }
+                </div>
+
+                <div class="field field-full">
+                    <label for="email">Correo electrónico</label>
+                    <input id="email" type="email" formControlName="correo" autocomplete="email" placeholder="usuario@helpdesk.local" /> @if ( usuarioForm.controls.correo.touched && usuarioForm.controls.correo.invalid ) {
+                    <small class="field-error">
+                Ingresa un correo electrónico válido.
+              </small> }
+                </div>
+
+                <div class="field">
+                    <label for="role">Rol del usuario</label>
+                    <select id="role" formControlName="rol">
+              @for (rol of roles; track rol.codigo) {
+                <option [value]="rol.codigo">
+                  {{ rol.nombre }}
+                </option>
+              }
+            </select>
+                </div>
+
+                <div class="field">
+                    <label for="password">
+              {{ usuarioEditandoId()
+                ? 'Nueva contraseña'
+                : 'Contraseña' }}
+            </label>
+
+                    <input id="password" type="password" formControlName="contrasena" autocomplete="new-password" [placeholder]="usuarioEditandoId()
+                ? 'Dejar vacío para conservarla'
+                : 'Mínimo 8 caracteres'" /> @if ( usuarioForm.controls.contrasena.touched && usuarioForm.controls.contrasena.invalid ) {
+                    <small class="field-error">
+                La contraseña debe tener entre 8 y 72 caracteres.
+              </small> }
+                </div>
+            </div>
+
+            <footer class="modal-actions">
+                <button type="button" class="button button-secondary" [disabled]="guardando()" (click)="cerrarFormulario()">
+            Cancelar
+          </button>
+
+                <button type="submit" class="button button-primary" [disabled]="guardando()">
+            {{ guardando()
+              ? 'Guardando...'
+              : usuarioEditandoId()
+                ? 'Guardar cambios'
+                : 'Crear usuario' }}
+          </button>
+            </footer>
+        </form>
+    </section>
+</div>
+}

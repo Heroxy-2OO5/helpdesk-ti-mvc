@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
     {
@@ -28,6 +29,22 @@ export const routes: Routes = [
                 path: '',
                 pathMatch: 'full',
                 redirectTo: 'inicio',
+            },
+            {
+                path: 'administracion/usuarios',
+                canActivate: [roleGuard],
+                data: {
+                    roles: ['ADMINISTRATOR'],
+                },
+                loadComponent: () => import('./features/admin/users/users-admin.component').then((component) => component.UsersAdminComponent),
+            },
+            {
+                path: 'administracion/categorias',
+                canActivate: [roleGuard],
+                data: {
+                    roles: ['ADMINISTRATOR'],
+                },
+                loadComponent: () => import('./features/admin/categories/categories-admin.component').then((component) => component.CategoriesAdminComponent),
             },
         ],
     },
