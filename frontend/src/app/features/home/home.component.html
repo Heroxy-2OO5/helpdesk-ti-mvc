@@ -1,72 +1,384 @@
-<section class="page-header">
-    <div>
-        <p class="eyebrow">Panel principal</p>
-        <h1>Bienvenido a Helpdesk TI</h1>
+<section class="home-page">
+    <header class="welcome-card" [class.welcome-admin]="esAdministrador()" [class.welcome-technician]="esTecnico()" [class.welcome-requester]="esSolicitante()">
+        <div class="welcome-content">
+            <span class="role-label">
+        {{ nombreRol() }}
+      </span>
 
-        <p>
-            Sesión iniciada como
-            <strong>{{ user()?.nombreCompleto }}</strong>
-        </p>
+            <h1>
+                {{ saludo }}, {{ user()?.nombreCompleto }}
+            </h1>
+
+            <p>
+                {{ descripcionRol() }}
+            </p>
+
+            <div class="welcome-actions">
+                <a routerLink="/tickets" class="button button-light">
+          @if (esSolicitante()) {
+            Crear o consultar ticket
+          } @else {
+            Consultar tickets
+          }
+        </a> @if (esAdministrador()) {
+                <a routerLink="/administracion/metricas" class="button button-outline">
+            Ver panel de métricas
+          </a> }
+            </div>
+        </div>
+
+        <div class="welcome-visual" aria-hidden="true">
+            <div class="visual-circle circle-one"></div>
+            <div class="visual-circle circle-two"></div>
+
+            <div class="visual-card">
+                <span>TI</span>
+
+                <div>
+                    <strong>Centro de soporte</strong>
+                    <small>Gestión de incidencias</small>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    @if (mensajeError()) {
+    <div class="home-alert" role="alert">
+        <div>
+            <strong>No se pudo actualizar el panel</strong>
+            <span>{{ mensajeError() }}</span>
+        </div>
+
+        <button type="button" (click)="cargarPanel()">
+        Reintentar
+      </button>
+    </div>
+    } @if (cargando()) {
+    <div class="summary-grid loading-summary">
+        @for (item of [1, 2, 3, 4, 5]; track item) {
+        <div class="summary-skeleton">
+            <span></span>
+            <i></i>
+            <small></small>
+        </div>
+        }
+    </div>
+    } @else {
+    <section class="summary-grid" aria-label="Resumen de tickets">
+        <article class="summary-card summary-total">
+            <span class="summary-icon">▦</span>
+
+            <div>
+                <small>
+            @if (esAdministrador()) {
+              Total de tickets
+            } @else {
+              Mis tickets
+            }
+          </small>
+
+                <strong>{{ resumen().total }}</strong>
+                <p>Registros activos</p>
+            </div>
+        </article>
+
+        @if (esAdministrador()) {
+        <article class="summary-card summary-pending">
+            <span class="summary-icon">◷</span>
+
+            <div>
+                <small>Pendientes</small>
+                <strong>{{ resumen().pendientes }}</strong>
+                <p>Sin asignar</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-critical">
+            <span class="summary-icon">!</span>
+
+            <div>
+                <small>Prioridad crítica</small>
+                <strong>{{ resumen().criticos }}</strong>
+                <p>Requieren atención</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-process">
+            <span class="summary-icon">⚙</span>
+
+            <div>
+                <small>En proceso</small>
+                <strong>{{ resumen().enProceso }}</strong>
+                <p>Siendo atendidos</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-resolved">
+            <span class="summary-icon">✓</span>
+
+            <div>
+                <small>Resueltos</small>
+                <strong>{{ resumen().resueltos }}</strong>
+                <p>Solución registrada</p>
+            </div>
+        </article>
+        } @if (esTecnico()) {
+        <article class="summary-card summary-assigned">
+            <span class="summary-icon">⌁</span>
+
+            <div>
+                <small>Asignados</small>
+                <strong>{{ resumen().asignados }}</strong>
+                <p>Listos para iniciar</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-process">
+            <span class="summary-icon">⚙</span>
+
+            <div>
+                <small>En proceso</small>
+                <strong>{{ resumen().enProceso }}</strong>
+                <p>Atención iniciada</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-resolved">
+            <span class="summary-icon">✓</span>
+
+            <div>
+                <small>Resueltos</small>
+                <strong>{{ resumen().resueltos }}</strong>
+                <p>Solución registrada</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-closed">
+            <span class="summary-icon">●</span>
+
+            <div>
+                <small>Cerrados</small>
+                <strong>{{ resumen().cerrados }}</strong>
+                <p>Proceso finalizado</p>
+            </div>
+        </article>
+        } @if (esSolicitante()) {
+        <article class="summary-card summary-pending">
+            <span class="summary-icon">◷</span>
+
+            <div>
+                <small>Pendientes</small>
+                <strong>{{ resumen().pendientes }}</strong>
+                <p>Esperando atención</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-process">
+            <span class="summary-icon">⚙</span>
+
+            <div>
+                <small>En atención</small>
+                <strong>{{ ticketsEnAtencion() }}</strong>
+                <p>Asignados o en proceso</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-resolved">
+            <span class="summary-icon">✓</span>
+
+            <div>
+                <small>Resueltos</small>
+                <strong>{{ resumen().resueltos }}</strong>
+                <p>Con solución registrada</p>
+            </div>
+        </article>
+
+        <article class="summary-card summary-closed">
+            <span class="summary-icon">●</span>
+
+            <div>
+                <small>Cerrados</small>
+                <strong>{{ resumen().cerrados }}</strong>
+                <p>Solicitudes finalizadas</p>
+            </div>
+        </article>
+        }
+    </section>
+    }
+
+    <div class="dashboard-grid">
+        <article class="recent-panel">
+            <header class="panel-heading">
+                <div>
+                    <span class="panel-eyebrow">Actividad reciente</span>
+                    <h2>{{ tituloTickets() }}</h2>
+                    <p>{{ subtituloTickets() }}</p>
+                </div>
+
+                <a routerLink="/tickets">
+          Ver todos
+          <span aria-hidden="true">→</span>
+        </a>
+            </header>
+
+            @if (cargando()) {
+            <div class="ticket-loading">
+                <span class="spinner"></span> Cargando actividad...
+            </div>
+            } @else if (ticketsRecientes().length === 0) {
+            <div class="empty-tickets">
+                <span class="empty-icon">◎</span>
+
+                <div>
+                    <h3>No existen tickets para mostrar</h3>
+
+                    @if (esSolicitante()) {
+                    <p>
+                        Cuando registres una solicitud aparecerá en esta sección.
+                    </p>
+
+                    <a routerLink="/tickets">
+                Registrar mi primer ticket
+              </a> } @else {
+                    <p>
+                        La actividad reciente aparecerá automáticamente aquí.
+                    </p>
+                    }
+                </div>
+            </div>
+            } @else {
+            <div class="ticket-list">
+                @for ( ticket of ticketsRecientes(); track ticket.id ) {
+                <a class="ticket-item" [routerLink]="['/tickets', ticket.id]">
+                    <span class="priority-indicator" [ngClass]="clasePrioridad(
+                  ticket.prioridadCodigo
+                )"></span>
+
+                    <div class="ticket-main">
+                        <div class="ticket-title">
+                            <strong>{{ ticket.titulo }}</strong>
+                            <small>{{ ticket.codigo }}</small>
+                        </div>
+
+                        <div class="ticket-meta">
+                            <span>{{ ticket.categoria }}</span>
+                            <i></i> @if (esAdministrador()) {
+                            <span>{{ ticket.solicitante }}</span> } @else {
+                            <span>
+                      {{ ticket.tecnico || 'Sin técnico asignado' }}
+                    </span> }
+
+                            <i></i>
+                            <span>
+                    {{ ticket.creadoEn | date: 'dd/MM/yyyy HH:mm' }}
+                  </span>
+                        </div>
+                    </div>
+
+                    <span class="status-badge" [ngClass]="claseEstado(ticket.estadoCodigo)">
+                {{ ticket.estado }}
+              </span>
+
+                    <span class="ticket-arrow" aria-hidden="true">
+                ›
+              </span>
+                </a>
+                }
+            </div>
+            }
+        </article>
+
+        <aside class="side-column">
+            <article class="quick-panel">
+                <header>
+                    <span class="panel-eyebrow">Accesos directos</span>
+                    <h2>¿Qué deseas hacer?</h2>
+                </header>
+
+                <div class="quick-actions">
+                    <a routerLink="/tickets" class="quick-action">
+                        <span class="quick-icon quick-blue">▤</span>
+
+                        <div>
+                            <strong>
+                @if (esSolicitante()) {
+                  Registrar un ticket
+                } @else {
+                  Gestionar tickets
+                }
+              </strong>
+
+                            <small>
+                @if (esSolicitante()) {
+                  Solicita asistencia técnica
+                } @else {
+                  Consulta y atiende incidencias
+                }
+              </small>
+                        </div>
+
+                        <i>›</i>
+                    </a>
+
+                    @if (esAdministrador()) {
+                    <a routerLink="/administracion/usuarios" class="quick-action">
+                        <span class="quick-icon quick-purple">♙</span>
+
+                        <div>
+                            <strong>Gestionar usuarios</strong>
+                            <small>Cuentas, roles y accesos</small>
+                        </div>
+
+                        <i>›</i>
+                    </a>
+
+                    <a routerLink="/administracion/categorias" class="quick-action">
+                        <span class="quick-icon quick-orange">◇</span>
+
+                        <div>
+                            <strong>Gestionar categorías</strong>
+                            <small>Clasificación de incidencias</small>
+                        </div>
+
+                        <i>›</i>
+                    </a>
+
+                    <a routerLink="/administracion/metricas" class="quick-action">
+                        <span class="quick-icon quick-green">↗</span>
+
+                        <div>
+                            <strong>Consultar métricas</strong>
+                            <small>Rendimiento del HelpDesk</small>
+                        </div>
+
+                        <i>›</i>
+                    </a>
+                    }
+                </div>
+            </article>
+
+            <article class="help-card">
+                <span class="help-icon">?</span>
+
+                <div>
+                    @if (esAdministrador()) {
+                    <h3>Supervisa las prioridades</h3>
+                    <p>
+                        Revisa primero los tickets críticos y aquellos que aún no tienen un técnico asignado.
+                    </p>
+                    } @else if (esTecnico()) {
+                    <h3>Mantén los estados actualizados</h3>
+                    <p>
+                        Cambia el ticket a “En proceso” cuando comiences a atenderlo y registra la solución al resolverlo.
+                    </p>
+                    } @else {
+                    <h3>Describe claramente el problema</h3>
+                    <p>
+                        Incluye detalles suficientes para que el equipo técnico pueda atender tu solicitud con mayor rapidez.
+                    </p>
+                    }
+                </div>
+            </article>
+        </aside>
     </div>
 </section>
-
-<div class="home-grid">
-    <article class="panel">
-        <h2>Información de la sesión</h2>
-
-        <dl class="details">
-            <div>
-                <dt>Usuario</dt>
-                <dd>{{ user()?.nombreCompleto }}</dd>
-            </div>
-
-            <div>
-                <dt>Correo</dt>
-                <dd>{{ user()?.correo }}</dd>
-            </div>
-
-            <div>
-                <dt>Rol</dt>
-                <dd>{{ roleName() }}</dd>
-            </div>
-        </dl>
-    </article>
-
-    <article class="panel">
-        <div class="panel-heading">
-            <h2>Estado del sistema</h2>
-
-            <button class="button button-secondary" type="button" [disabled]="loading()" (click)="verifyConnection()">Comprobar</button>
-        </div>
-
-        @if (loading()) {
-        <p>Comprobando la conexión...</p>
-        } @if (errorMessage()) {
-        <div class="alert alert-error">
-            {{ errorMessage() }}
-        </div>
-        } @if (health(); as currentHealth) {
-        <div class="status-list">
-            <div>
-                <span>API REST</span>
-                <strong class="status-ok">{{ currentHealth.api }}</strong>
-            </div>
-
-            <div>
-                <span>PostgreSQL</span>
-                <strong class="status-ok">{{ currentHealth.database }}</strong>
-            </div>
-        </div>
-
-        <p class="health-message">
-            {{ currentHealth.message }}
-        </p>
-        }
-    </article>
-</div>
-
-<article class="panel next-step">
-    <h2>Integracion iniciada correctamente</h2>
-
-    <p>Angular ya puede autenticarse, guardar la sesión, enviar el token JWT y consultar el backend. Los siguientes commits incorporarán usuarios, categorías, tickets, historial y métricas.</p>
-</article>
