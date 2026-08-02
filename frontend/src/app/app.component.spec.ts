@@ -1,13 +1,21 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
 
 import { App } from './app.component';
 
-describe('App', () => {
+describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+      ],
     }).compileComponents();
   });
 
@@ -17,12 +25,15 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('debe mostrar el contenedor de rutas', () => {
+  it('debe contener el router outlet principal', () => {
     const fixture = TestBed.createComponent(App);
+
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
 
-    expect(element.querySelector('router-outlet')).not.toBeNull();
+    expect(
+      element.querySelector('router-outlet'),
+    ).toBeTruthy();
   });
 });
