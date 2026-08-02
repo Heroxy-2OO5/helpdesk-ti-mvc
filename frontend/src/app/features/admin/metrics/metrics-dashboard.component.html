@@ -1,0 +1,284 @@
+<section class="metrics-page">
+    <header class="metrics-heading">
+        <div>
+            <span class="eyebrow">Administración</span>
+            <h1>Panel de métricas</h1>
+            <p>
+                Consulta el volumen de tickets, su distribución y la carga actual del equipo técnico.
+            </p>
+
+            @if (actualizadoEn()) {
+            <small>
+          Última actualización:
+          {{ actualizadoEn() | date: 'dd/MM/yyyy HH:mm:ss' }}
+        </small> }
+        </div>
+
+        <button type="button" class="refresh-button" [disabled]="cargando()" (click)="cargarMetricas()">
+      <span [class.spinning]="cargando()">↻</span>
+      {{ cargando() ? 'Actualizando...' : 'Actualizar métricas' }}
+    </button>
+    </header>
+
+    @if (mensajeError()) {
+    <div class="metrics-alert" role="alert">
+        <strong>No se pudo cargar el panel</strong>
+        <span>{{ mensajeError() }}</span>
+    </div>
+    } @if (cargando() && !metricas()) {
+    <div class="dashboard-loading">
+        <span class="loader"></span>
+        <p>Preparando el panel de métricas...</p>
+    </div>
+    } @else if (metricas(); as dashboard) {
+    <div class="summary-grid">
+        <article class="summary-card card-total">
+            <span class="summary-icon">▦</span>
+            <div>
+                <small>Total de tickets</small>
+                <strong>{{ dashboard.resumen.totalTickets }}</strong>
+            </div>
+        </article>
+
+        <article class="summary-card card-pending">
+            <span class="summary-icon">◷</span>
+            <div>
+                <small>Pendientes</small>
+                <strong>{{ dashboard.resumen.pendientes }}</strong>
+            </div>
+        </article>
+
+        <article class="summary-card card-assigned">
+            <span class="summary-icon">⌁</span>
+            <div>
+                <small>Asignados</small>
+                <strong>{{ dashboard.resumen.asignados }}</strong>
+            </div>
+        </article>
+
+        <article class="summary-card card-process">
+            <span class="summary-icon">⚙</span>
+            <div>
+                <small>En proceso</small>
+                <strong>{{ dashboard.resumen.enProceso }}</strong>
+            </div>
+        </article>
+
+        <article class="summary-card card-resolved">
+            <span class="summary-icon">✓</span>
+            <div>
+                <small>Resueltos</small>
+                <strong>{{ dashboard.resumen.resueltos }}</strong>
+            </div>
+        </article>
+
+        <article class="summary-card card-closed">
+            <span class="summary-icon">●</span>
+            <div>
+                <small>Cerrados</small>
+                <strong>{{ dashboard.resumen.cerrados }}</strong>
+            </div>
+        </article>
+
+        <article class="summary-card card-time">
+            <span class="summary-icon">◴</span>
+            <div>
+                <small>Promedio de resolución</small>
+
+                <strong>
+            @if (dashboard.resumen.horasPromedioResolucion !== null) {
+              {{ dashboard.resumen.horasPromedioResolucion
+                | number: '1.1-1' }} h
+            } @else {
+              Sin datos
+            }
+          </strong>
+            </div>
+        </article>
+    </div>
+
+    <div class="charts-grid">
+        <article class="metric-panel">
+            <header>
+                <div>
+                    <h2>Tickets por estado</h2>
+                    <p>Distribución dentro del flujo de atención.</p>
+                </div>
+            </header>
+
+            @if (dashboard.porEstado.length === 0) {
+            <div class="panel-empty">No existen datos por estado.</div>
+            } @else {
+            <div class="bars-list">
+                @for ( estado of dashboard.porEstado; track estado.estadoCodigo ) {
+                <div class="bar-item">
+                    <div class="bar-label">
+                        <span>{{ estado.estado }}</span>
+                        <strong>{{ estado.cantidad }}</strong>
+                    </div>
+
+                    <div class="bar-track">
+                        <span class="bar-fill status-bar" [style.width]="anchoBarra(
+                      estado.cantidad,
+                      maximoEstados()
+                    )"></span>
+                    </div>
+
+                    <small>
+                  {{ porcentaje(
+                    estado.cantidad,
+                    dashboard.resumen.totalTickets
+                  ) }}% del total
+                </small>
+                </div>
+                }
+            </div>
+            }
+        </article>
+
+        <article class="metric-panel">
+            <header>
+                <div>
+                    <h2>Tickets por prioridad</h2>
+                    <p>Nivel de urgencia de las solicitudes.</p>
+                </div>
+            </header>
+
+            @if (dashboard.porPrioridad.length === 0) {
+            <div class="panel-empty">No existen datos por prioridad.</div>
+            } @else {
+            <div class="bars-list">
+                @for ( prioridad of dashboard.porPrioridad; track prioridad.prioridadCodigo ) {
+                <div class="bar-item" [ngClass]="clasePrioridad(
+                  prioridad.prioridadCodigo
+                )">
+                    <div class="bar-label">
+                        <span>
+                    <i class="priority-dot"></i>
+                    {{ prioridad.prioridad }}
+                  </span>
+
+                        <strong>{{ prioridad.cantidad }}</strong>
+                    </div>
+
+                    <div class="bar-track">
+                        <span class="bar-fill priority-bar" [style.width]="anchoBarra(
+                      prioridad.cantidad,
+                      maximoPrioridades()
+                    )"></span>
+                    </div>
+
+                    <small>Nivel {{ prioridad.nivel }}</small>
+                </div>
+                }
+            </div>
+            }
+        </article>
+    </div>
+
+    <article class="metric-panel categories-panel">
+        <header>
+            <div>
+                <h2>Incidencias por categoría</h2>
+                <p>Áreas que generan mayor número de solicitudes.</p>
+            </div>
+        </header>
+
+        @if (dashboard.porCategoria.length === 0) {
+        <div class="panel-empty">No existen datos por categoría.</div>
+        } @else {
+        <div class="category-list">
+            @for ( categoria of dashboard.porCategoria; track categoria.categoriaId ) {
+            <div class="category-item">
+                <div class="category-title">
+                    <span>{{ categoria.categoria }}</span>
+                    <strong>{{ categoria.cantidad }}</strong>
+                </div>
+
+                <div class="bar-track">
+                    <span class="bar-fill category-bar" [style.width]="anchoBarra(
+                    categoria.cantidad,
+                    maximoCategorias()
+                  )"></span>
+                </div>
+            </div>
+            }
+        </div>
+        }
+    </article>
+
+    <article class="metric-panel technicians-panel">
+        <header>
+            <div>
+                <h2>Carga del equipo técnico</h2>
+                <p>Asignaciones actuales y tickets finalizados.</p>
+            </div>
+        </header>
+
+        @if (dashboard.porTecnico.length === 0) {
+        <div class="panel-empty">
+            No existen técnicos registrados para mostrar.
+        </div>
+        } @else {
+        <div class="metrics-table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Técnico</th>
+                        <th>Total asignados</th>
+                        <th>Carga actual</th>
+                        <th>Finalizados</th>
+                        <th>Progreso</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for ( tecnico of dashboard.porTecnico; track tecnico.tecnicoId ) {
+                    <tr>
+                        <td>
+                            <div class="technician-name">
+                                <span>
+                        {{ tecnico.tecnico.charAt(0).toUpperCase() }}
+                      </span>
+                                <strong>{{ tecnico.tecnico }}</strong>
+                            </div>
+                        </td>
+
+                        <td>{{ tecnico.totalAsignados }}</td>
+
+                        <td>
+                            <span class="load-badge">
+                      {{ tecnico.cargaActual }} activo(s)
+                    </span>
+                        </td>
+
+                        <td>{{ tecnico.finalizados }}</td>
+
+                        <td>
+                            <div class="completion">
+                                <div class="bar-track">
+                                    <span class="bar-fill completion-bar" [style.width]="
+                            porcentaje(
+                              tecnico.finalizados,
+                              tecnico.totalAsignados
+                            ) + '%'
+                          "></span>
+                                </div>
+
+                                <small>
+                        {{ porcentaje(
+                          tecnico.finalizados,
+                          tecnico.totalAsignados
+                        ) }}%
+                      </small>
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        }
+    </article>
+    }
+</section>

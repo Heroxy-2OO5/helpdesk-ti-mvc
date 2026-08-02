@@ -46,6 +46,14 @@ export const routes: Routes = [
                 },
                 loadComponent: () => import('./features/admin/categories/categories-admin.component').then((component) => component.CategoriesAdminComponent),
             },
+            {
+                path: 'administracion/metricas',
+                canActivate: [roleGuard],
+                data: {
+                    roles: ['ADMINISTRATOR'],
+                },
+                loadComponent: () => import('./features/admin/metrics/metrics-dashboard.component').then((component) => component.MetricsDashboardComponent),
+            },
         ],
     },
     {
