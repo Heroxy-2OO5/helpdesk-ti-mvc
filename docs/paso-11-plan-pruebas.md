@@ -1,8 +1,10 @@
 # Paso 11: Plan de pruebas del sistema
 
 **Proyecto:** HelpDesk TI  
-**Estado:** EN EJECUCIÓN  
+**Estado:** COMPLETADO  
 **Fecha de inicio:** 02/08/2026  
+**Fecha de finalización:** 02/08/2026  
+**Resultado:** APROBADO  
 **Arquitectura:** MVC  
 **Frontend:** Angular y TypeScript  
 **Backend:** Node.js, Express y TypeScript  
@@ -87,3 +89,40 @@ npm --version
 ng version
 psql --version
 ```
+
+## 5. Resultado final
+
+El plan de pruebas fue ejecutado satisfactoriamente.
+
+| Grupo         | Aprobadas | Fallidas | Estado   |
+| ------------- | --------: | -------: | -------- |
+| Frontend      |        40 |        0 | APROBADO |
+| Backend       |        35 |        0 | APROBADO |
+| Seguridad API |        13 |        0 | APROBADO |
+| Funcionales   |        13 |        0 | APROBADO |
+| Sistema       |         5 |        0 | APROBADO |
+
+No se identificaron defectos críticos o altos pendientes.
+
+## 6. Criterios de salida
+
+| Criterio                          | Resultado |
+| --------------------------------- | --------- |
+| Pruebas automatizadas finalizadas | CUMPLIDO  |
+| Flujos críticos ejecutados        | CUMPLIDO  |
+| Resultados documentados           | CUMPLIDO  |
+| Evidencias almacenadas            | CUMPLIDO  |
+| Frontend compilado                | CUMPLIDO  |
+| Backend compilado                 | CUMPLIDO  |
+| Seguridad por roles comprobada    | CUMPLIDO  |
+| Plan general actualizado          | CUMPLIDO  |
+
+## 7. Documentación relacionada
+
+- [Consolidación del paso 11](paso-11-pruebas.md)
+- [Resultados funcionales, seguridad y sistema](pruebas/resultados-funcionales-seguridad-sistema.md)
+- [Evidencias](pruebas/README.md)
+
+## 8. Cierre
+
+Todos los criterios de salida fueron cumplidos. El paso 11 se considera completado y aprobado.
